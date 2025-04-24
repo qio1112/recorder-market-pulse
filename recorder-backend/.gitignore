@@ -1,0 +1,4 @@
+HELP.md
+/logs/
+/uploaded_files/
+src/main/resources/application.properties
