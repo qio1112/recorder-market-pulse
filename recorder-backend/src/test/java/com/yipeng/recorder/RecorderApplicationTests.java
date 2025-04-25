@@ -15,8 +15,10 @@ import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
 import jakarta.mail.MessagingException;
+import jakarta.persistence.EntityManagerFactory;
 import jakarta.validation.constraints.AssertTrue;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -24,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.io.File;
@@ -82,22 +85,22 @@ class RecorderApplicationTests {
 
     @Test
     void testGetJWTTokenAPI() {
-//        prepareTestData();
-//        String username = "test_user_admin";
-//        String password = "12345678";
-//        Response response = given()
-//                .contentType(ContentType.JSON)
-//                .body("{ \"username\": \"" + username + "\", \"password\": \"" + password + "\" }")
-//                .post(baseUrl + "/api/auth/authenticate");
-//
-//        // Validate response
-//        response.then()
-//                .statusCode(200)
-//                .body("token", notNullValue());
-//
-//        // Extract the token
-//        jwtToken = response.jsonPath().getString("token");
-//        logger.info("jwt token created for user: {}, token: {}", username, jwtToken);
+        prepareTestData();
+        String username = "test_user_admin";
+        String password = "12345678";
+        Response response = given()
+                .contentType(ContentType.JSON)
+                .body("{ \"username\": \"" + username + "\", \"password\": \"" + password + "\" }")
+                .post(baseUrl + "/api/auth/authenticate");
+
+        // Validate response
+        response.then()
+                .statusCode(200)
+                .body("token", notNullValue());
+
+        // Extract the token
+        jwtToken = response.jsonPath().getString("token");
+        logger.info("jwt token created for user: {}, token: {}", username, jwtToken);
     }
 
     @Test

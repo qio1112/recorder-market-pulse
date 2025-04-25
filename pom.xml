@@ -1,94 +1,94 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
                              https://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
+    <modelVersion>4.0.0</modelVersion>
 
-  <!-- coordinates for your multi-module parent -->
-  <groupId>com.yipeng</groupId>
-  <artifactId>recorder-root</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
-  <packaging>pom</packaging>
+    <!-- coordinates for your multi-module parent -->
+    <groupId>com.yipeng</groupId>
+    <artifactId>recorder-root</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
 
-  <properties>
-    <java.version>17</java.version>
-    <spring-boot.version>3.3.3</spring-boot.version>
-    <scala.binary.version>2.12</scala.binary.version>
-    <spark.version>3.5.2</spark.version>
-    <jjwt.version>0.12.6</jjwt.version>
-  </properties>
+    <properties>
+        <java.version>17</java.version>
+        <spring-boot.version>3.3.3</spring-boot.version>
+        <scala.binary.version>2.12</scala.binary.version>
+        <spark.version>3.5.2</spark.version>
+        <jjwt.version>0.12.6</jjwt.version>
+    </properties>
 
-  <dependencyManagement>
-    <dependencies>
+    <dependencyManagement>
+        <dependencies>
 
-      <!-- Spring Boot BOM -->
-      <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-dependencies</artifactId>
-        <version>${spring-boot.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
+            <!-- Spring Boot BOM -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
 
-      <!-- Spark parent BOM -->
-      <dependency>
-        <groupId>org.apache.spark</groupId>
-        <artifactId>spark-parent_${scala.binary.version}</artifactId>
-        <version>${spark.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
+            <!-- Spark parent BOM -->
+            <dependency>
+                <groupId>org.apache.spark</groupId>
+                <artifactId>spark-parent_${scala.binary.version}</artifactId>
+                <version>${spark.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
 
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-            <version>${jjwt.version}</version> <!-- Use the latest version -->
-        </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version> <!-- Use the latest version -->
+            </dependency>
 
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <version>${jjwt.version}</version> <!-- Use the latest version -->
-            <scope>runtime</scope> <!-- Set as runtime because it's only needed during runtime -->
-        </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${jjwt.version}</version> <!-- Use the latest version -->
+                <scope>runtime</scope> <!-- Set as runtime because it's only needed during runtime -->
+            </dependency>
 
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId> 
-            <version>${jjwt.version}</version> 
-            <scope>runtime</scope>
-        </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${jjwt.version}</version>
+                <scope>runtime</scope>
+            </dependency>
 
-        <dependency>
-            <groupId>org.antlr</groupId>
-            <artifactId>antlr4-runtime</artifactId>
-            <version>4.13.2</version>
-        </dependency>
+            <dependency>
+                <groupId>org.antlr</groupId>
+                <artifactId>antlr4-runtime</artifactId>
+                <version>4.13.2</version>
+            </dependency>
 
-    </dependencies>
-  </dependencyManagement>
+        </dependencies>
+    </dependencyManagement>
 
-   <build>
-       <plugins>
-           <!-- 1) Compiler plugin -->
-           <plugin>
-               <groupId>org.apache.maven.plugins</groupId>
-               <artifactId>maven-compiler-plugin</artifactId>
-           </plugin>
+    <build>
+        <plugins>
+            <!-- 1) Compiler plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
 
-           <!-- 2) Spring Boot packaging -->
-           <plugin>
-               <groupId>org.springframework.boot</groupId>
-               <artifactId>spring-boot-maven-plugin</artifactId>
-           </plugin>
+            <!-- 2) Spring Boot packaging -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
 
-           <!-- 3) Scala support (for any module that needs it) -->
-           <plugin>
-               <groupId>net.alchim31.maven</groupId>
-               <artifactId>scala-maven-plugin</artifactId>
-           </plugin>
+            <!-- 3) Scala support (for any module that needs it) -->
+            <plugin>
+                <groupId>net.alchim31.maven</groupId>
+                <artifactId>scala-maven-plugin</artifactId>
+            </plugin>
 
-       </plugins>
+        </plugins>
 
         <pluginManagement>
             <plugins>
@@ -123,9 +123,9 @@
                 </plugin>
             </plugins>
         </pluginManagement>
-  </build>
+    </build>
 
-  <modules>
-    <module>recorder-backend</module>
-  </modules>
+    <modules>
+        <module>recorder-backend</module>
+    </modules>
 </project>

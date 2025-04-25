@@ -21,7 +21,7 @@ public class User {
     @Column(unique = true, nullable = false)
     private String username;
 
-    @Size(min = 8, max = 24)
+    @Size(min = 8)
     @Column(nullable = false)
     private String password;
 
