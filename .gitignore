@@ -32,3 +32,4 @@ build/
 *.DS_Store
 /logs/
 /uploaded_files/
+/.env.prod

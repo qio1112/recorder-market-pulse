@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.sql.Time;
 
 public class ScriptUtil {
 
@@ -21,7 +22,7 @@ public class ScriptUtil {
                 throw new IOException("Resource not found: " + resourcePath);
             }
             // Create a temporary file
-            File tempScript = File.createTempFile("run", ".sh");
+            File tempScript = File.createTempFile("run" + System.currentTimeMillis(), ".sh");
             tempScript.deleteOnExit(); // Ensure cleanup on JVM exit
 
             // Copy the contents of the resource to the temporary file
