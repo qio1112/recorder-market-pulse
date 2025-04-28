@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mvn clean package -DskipTests
+
+# 1) Load env vars from .env.prod
+ENV_FILE="../.env.prod"
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "Error: $ENV_FILE not found. Create it with your prod secrets." >&2
+  exit 1
+fi
+# Export every non-comment line
+echo "Exporting env variables from $ENV_FILE:"
+#grep -v '^#' "$ENV_FILE" | xargs -n1 echo
+export $(grep -v '^#' "$ENV_FILE" | xargs)
+
+# make directories for market_pulse logs
+mkdir -p ${MARKET_PULSE_PATH_SERVER}/resources/logs
+touch ${MARKET_PULSE_PATH_SERVER}/resources/logs/log.txt
+
+
+# 2) Build the image (assumes your Dockerfile is in recorder-backend/)
+echo "Building Docker image..."
+docker build \
+  --build-arg MARKET_PULSE_PATH=${MARKET_PULSE_PATH} \
+  --build-arg BACKEND_APP_LOG_PATH=${BACKEND_APP_LOG_PATH} \
+  --build-arg BACKEND_APP_FILE_PATH=${BACKEND_APP_FILE_PATH} \
+  --build-arg MARKET_PULSE_PATH_SERVER=${MARKET_PULSE_PATH_SERVER} \
+  -t recorder-backend:latest .
+
+# 3) Stop & remove any existing container
+if docker ps -a --format '{{.Names}}' | grep -q '^recorder-backend$' ; then
+  echo "Removing old container..."
+  docker rm -f recorder-backend
+fi
+
+# 4) Run the new container
+echo "Starting recorder-backend container..."
+docker run -d \
+  --name recorder-backend \
+  --restart unless-stopped \
+  --env-file ../.env.prod \
+  -v ${BACKEND_APP_LOG_PATH_SERVER}:${BACKEND_APP_LOG_PATH} \
+  -v ${BACKEND_APP_FILE_PATH_SERVER}:${BACKEND_APP_FILE_PATH} \
+  -v ${MARKET_PULSE_PATH_SERVER}:${MARKET_PULSE_PATH} \
+  -p 8080:8080 \
+  recorder-backend:latest
+
+echo "→ recorder-backend is up!  Logs: docker logs -f recorder-backend"

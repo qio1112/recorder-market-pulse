@@ -2,4 +2,4 @@ HELP.md
 /logs/
 /uploaded_files/
 /src/test/resources/application-test.properties
-/run_recorder_backend.sh
+/market_pulse/resources/

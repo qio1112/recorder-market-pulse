@@ -6,7 +6,11 @@ fi
 
 echo "Using path: $MARKET_PULSE_PATH"
 cd $MARKET_PULSE_PATH
-source venv/bin/activate
+
+if [ -z "$MARKET_PULSE_VENV_PATH" ]; then
+  MARKET_PULSE_VENV_PATH="venv/bin/activate"
+fi
+source ${MARKET_PULSE_VENV_PATH}
 
 output=$(python -m main.main 2>&1)  # Capture output in a variable
 echo "$output"
