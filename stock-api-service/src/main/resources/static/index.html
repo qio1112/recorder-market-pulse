@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock API Service - Real-time Demo</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .stock-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .stock-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .stock-symbol {
+            font-weight: bold;
+            font-size: 18px;
+            color: #333;
+        }
+        .stock-price {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .positive { color: #28a745; }
+        .negative { color: #dc3545; }
+        .neutral { color: #6c757d; }
+        .stock-change {
+            font-size: 14px;
+        }
+        .market-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .summary-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .summary-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .summary-label {
+            font-size: 12px;
+            color: #6c757d;
+            text-transform: uppercase;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📈 Stock API Service - Real-time Demo</h1>
+            <p>Live stock data streaming via WebSocket and REST API</p>
+        </div>
+
+        <div class="section">
+            <h2>🔌 Connection Status</h2>
+            <div id="connectionStatus" class="status disconnected">
+                Disconnected from WebSocket
+            </div>
+            <button onclick="connectWebSocket()">Connect WebSocket</button>
+            <button onclick="disconnectWebSocket()">Disconnect</button>
+            <button onclick="testRestApi()">Test REST API</button>
+        </div>
+
+        <div class="section">
+            <h2>📊 Market Summary</h2>
+            <div id="marketSummary" class="market-summary">
+                <div class="summary-item">
+                    <div class="summary-value" id="totalStocks">-</div>
+                    <div class="summary-label">Total Stocks</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="advancingStocks">-</div>
+                    <div class="summary-label">Advancing</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="decliningStocks">-</div>
+                    <div class="summary-label">Declining</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="totalVolume">-</div>
+                    <div class="summary-label">Total Volume</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>💹 Live Stock Updates</h2>
+            <div id="stockGrid" class="stock-grid">
+                <!-- Stock cards will be populated here -->
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📝 Event Log</h2>
+            <div id="eventLog" class="log">
+                <!-- Event logs will appear here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let stompClient = null;
+        const stockData = {};
+
+        function connectWebSocket() {
+            const socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+            
+            stompClient.connect({}, function (frame) {
+                log('Connected to WebSocket: ' + frame);
+                updateConnectionStatus(true);
+                
+                // Subscribe to stock updates
+                stompClient.subscribe('/topic/stock-updates', function (message) {
+                    const stock = JSON.parse(message.body);
+                    updateStockCard(stock);
+                    log('Received stock update: ' + stock.symbol + ' = $' + stock.price);
+                });
+                
+                // Subscribe to multiple stock updates
+                stompClient.subscribe('/topic/multiple-stock-updates', function (message) {
+                    const stocks = JSON.parse(message.body);
+                    stocks.forEach(stock => {
+                        updateStockCard(stock);
+                    });
+                    log('Received multiple stock updates: ' + stocks.length + ' stocks');
+                });
+                
+                // Subscribe to market summary
+                stompClient.subscribe('/topic/market-summary', function (message) {
+                    const summary = JSON.parse(message.body);
+                    updateMarketSummary(summary);
+                    log('Received market summary update');
+                });
+                
+                // Request initial market summary
+                stompClient.send("/app/market-summary", {}, {});
+                
+            }, function (error) {
+                log('WebSocket connection error: ' + error);
+                updateConnectionStatus(false);
+            });
+        }
+
+        function disconnectWebSocket() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+                log('Disconnected from WebSocket');
+                updateConnectionStatus(false);
+            }
+        }
+
+        function updateConnectionStatus(connected) {
+            const statusDiv = document.getElementById('connectionStatus');
+            if (connected) {
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = 'Connected to WebSocket';
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = 'Disconnected from WebSocket';
+            }
+        }
+
+        function updateStockCard(stock) {
+            const stockGrid = document.getElementById('stockGrid');
+            let card = document.getElementById('stock-' + stock.symbol);
+            
+            if (!card) {
+                card = document.createElement('div');
+                card.className = 'stock-card';
+                card.id = 'stock-' + stock.symbol;
+                stockGrid.appendChild(card);
+            }
+            
+            const changeClass = stock.change > 0 ? 'positive' : stock.change < 0 ? 'negative' : 'neutral';
+            const changeSymbol = stock.change > 0 ? '+' : '';
+            
+            card.innerHTML = `
+                <div class="stock-symbol">${stock.symbol}</div>
+                <div class="stock-price ${changeClass}">$${stock.price}</div>
+                <div class="stock-change ${changeClass}">
+                    ${changeSymbol}$${stock.change} (${changeSymbol}${stock.changePercent}%)
+                </div>
+                <div style="font-size: 12px; color: #666;">
+                    Vol: ${stock.volume.toLocaleString()}<br>
+                    ${new Date(stock.timestamp).toLocaleTimeString()}
+                </div>
+            `;
+        }
+
+        function updateMarketSummary(summary) {
+            document.getElementById('totalStocks').textContent = summary.totalStocks || '-';
+            document.getElementById('advancingStocks').textContent = summary.advancingStocks || '-';
+            document.getElementById('decliningStocks').textContent = summary.decliningStocks || '-';
+            document.getElementById('totalVolume').textContent = 
+                summary.totalVolume ? (summary.totalVolume / 1000000).toFixed(1) + 'M' : '-';
+        }
+
+        async function testRestApi() {
+            try {
+                const response = await fetch('/api/stocks/price/AAPL');
+                const stock = await response.json();
+                log('REST API test - AAPL: $' + stock.price);
+                updateStockCard(stock);
+            } catch (error) {
+                log('REST API test failed: ' + error.message);
+            }
+        }
+
+        function log(message) {
+            const logDiv = document.getElementById('eventLog');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // Auto-connect on page load
+        window.onload = function() {
+            setTimeout(connectWebSocket, 1000);
+        };
+    </script>
+</body>
+</html> 

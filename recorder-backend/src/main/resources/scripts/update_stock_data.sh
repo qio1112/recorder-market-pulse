@@ -12,6 +12,8 @@ if [ -z "$MARKET_PULSE_VENV_PATH" ]; then
 fi
 source ${MARKET_PULSE_VENV_PATH}
 
+pip install --upgrade yfinance
+
 output=$(python -m main.main 2>&1)  # Capture output in a variable
 echo "$output"
 

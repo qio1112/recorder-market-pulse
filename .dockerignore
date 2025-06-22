@@ -1,0 +1,36 @@
+# Maven
+# target/
+!**/target/
+!**/target/classes/
+!**/target/maven-status/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Test files
+**/test/
+**/tests/
+**/*Test.java
+**/*Tests.java
+
+# DO NOT EXCLUDE MODULES
+# recorder-backend/
+# stock-api-service/ 
