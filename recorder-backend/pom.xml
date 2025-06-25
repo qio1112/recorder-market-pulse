@@ -97,6 +97,13 @@
             <groupId>org.antlr</groupId>
             <artifactId>antlr4-runtime</artifactId>
         </dependency>
+
+        <!-- recorder-common dependency -->
+        <dependency>
+            <groupId>com.yipeng.recorder</groupId>
+            <artifactId>recorder-common</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
     </dependencies>
 
     <build>

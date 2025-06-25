@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # 1) load your prod env (fails if missing)
-ENV_FILE=".env.prod"
+ENV_FILE=".env"
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Missing $ENV_FILE – aborting!" >&2
   exit 1
@@ -11,10 +11,10 @@ fi
 export $(grep -v '^#' "$ENV_FILE" | xargs)
 
 # 2) optionally pull down the newest images
-docker-compose pull
+docker compose pull
 
-# 3) bring up the stack, recreating only what’s changed
-docker-compose up -d --remove-orphans
+# 3) bring up the stack, recreating only what's changed
+docker compose up -d --remove-orphans
 
 # 4) show status
-docker-compose ps
+docker compose ps

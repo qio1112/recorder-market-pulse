@@ -1,42 +1,17 @@
 services:
-  recorder-backend:
-    build:
-      context: ./recorder-backend
-      dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
-    environment:
-      # MySQL connection
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/recorder
-      SPRING_DATASOURCE_USERNAME: youruser
-      SPRING_DATASOURCE_PASSWORD: yourpass
-
-      # These pick up the Dockerfile's ENV defaults if you don't override
-      APP_LOG_PATH: /app/logs/application.log
-      APP_FILE_PATH: /app/uploaded_files
-    volumes:
-      - /Users/baomini/market_pulse/backend/applog:/app/logs
-      - /Users/baomini/market_pulse/backend/uploaded_files:/app/uploaded_files
-    restart: unless-stopped
-    depends_on:
-      mysql:
-        condition: service_healthy
-    networks:
-      - app-network
-
-  # Stock API Service (optional - for demo/testing)
+  # Stock API Service (starts first)
   stock-api-service:
     build:
-      context: .
-      dockerfile: docker/Dockerfile.stock-api-service
+      context: ./stock-api-service
+      dockerfile: Dockerfile
     container_name: stock-api-service
     ports:
       - "8081:8081"
     environment:
       # Database configuration (optional - service works without DB)
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/stock_data?useSSL=false&serverTimezone=UTC
-      SPRING_DATASOURCE_USERNAME: stockuser
-      SPRING_DATASOURCE_PASSWORD: stockpass
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASS}
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
       
       # Application specific settings
@@ -56,18 +31,61 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    profiles:
-      - stock-api  # Only start when explicitly requested
 
-  # Shared MySQL database
+  # Recorder Backend (starts after stock-api-service)
+  recorder-backend:
+    build:
+      context: ./recorder-backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # MySQL connection (using .env values)
+      DB_HOST: jdbc:mysql://mysql:3306/recorder?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+
+      # Email configuration (using .env values)
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_USER: ${MAIL_USER}
+      MAIL_PASS: ${MAIL_PASS}
+      MAIL_PROTOCOL: ${MAIL_PROTOCOL}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH}
+      MAIL_SMTP_STARTTLS_ENABLE: ${MAIL_SMTP_STARTTLS_ENABLE}
+
+      # Admin configuration (using .env values)
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+
+      # JWT configuration (using .env values)
+      JWT_SECRET: ${JWT_SECRET}
+
+      # These pick up the Dockerfile's ENV defaults if you don't override
+      APP_LOG_PATH: /app/logs/application.log
+      APP_FILE_PATH: /app/uploaded_files
+    volumes:
+      - ${BACKEND_APP_LOG_PATH_SERVER}:/app/logs
+      - ${BACKEND_APP_FILE_PATH_SERVER}:/app/uploaded_files
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      stock-api-service:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # Shared MySQL database (using .env.prod configuration)
   mysql:
     image: mysql:8.0
     container_name: recorder-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_ROOT_PASSWORD: ${DB_PASS}
       MYSQL_DATABASE: recorder
-      MYSQL_USER: youruser
-      MYSQL_PASSWORD: yourpass
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASS}
       # Additional database for stock data
       MYSQL_MULTIPLE_DATABASES: recorder,stock_data
     ports:

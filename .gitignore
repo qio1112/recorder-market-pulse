@@ -33,3 +33,12 @@ build/
 /logs/
 /uploaded_files/
 /.env.prod
+/.env
+
+### Python ###
+__pycache__/
+*.py[cod]
+*$py.class
+
+### JAR files ###
+*.jar

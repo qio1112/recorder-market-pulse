@@ -135,5 +135,6 @@
     <modules>
         <module>recorder-backend</module>
         <module>stock-api-service</module>
+        <module>recorder-common</module>
     </modules>
 </project>
