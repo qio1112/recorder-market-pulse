@@ -13,7 +13,8 @@
     <properties>
         <java.version>17</java.version>
         <spring-boot.version>3.3.3</spring-boot.version>
-        <scala.binary.version>2.12</scala.binary.version>
+        <scala.binary.version>2.13</scala.binary.version>
+        <scala.version>2.13.12</scala.version>
         <spark.version>3.5.2</spark.version>
         <jjwt.version>0.12.6</jjwt.version>
     </properties>
@@ -63,6 +64,23 @@
                 <groupId>org.antlr</groupId>
                 <artifactId>antlr4-runtime</artifactId>
                 <version>4.13.2</version>
+            </dependency>
+
+            <!-- Enforce Scala version for all modules -->
+            <dependency>
+                <groupId>org.scala-lang</groupId>
+                <artifactId>scala-library</artifactId>
+                <version>${scala.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.scala-lang</groupId>
+                <artifactId>scala-reflect</artifactId>
+                <version>${scala.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.scala-lang</groupId>
+                <artifactId>scala-compiler</artifactId>
+                <version>${scala.version}</version>
             </dependency>
 
         </dependencies>
@@ -118,7 +136,7 @@
                 <plugin>
                     <groupId>net.alchim31.maven</groupId>
                     <artifactId>scala-maven-plugin</artifactId>
-                    <version>4.5.3</version>
+                    <version>4.8.1</version>
                     <executions>
                         <execution>
                             <goals>
@@ -136,5 +154,6 @@
         <module>recorder-backend</module>
         <module>stock-api-service</module>
         <module>recorder-common</module>
+        <module>data-processor</module>
     </modules>
 </project>

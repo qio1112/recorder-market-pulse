@@ -24,6 +24,8 @@ import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -42,13 +44,16 @@ public class RecordService {
 
     private final ScheduleAlertService scheduleAlertService;
 
+    private final ProcessedStockDataService processedStockDataService;
+
     @Autowired
-    public RecordService(RecordRepository recordRepository, LabelRepository labelRepository, RecFileRepository recFileRepository, DateTimeUtils dateTimeUtils, ScheduleAlertService scheduleAlertService) {
+    public RecordService(RecordRepository recordRepository, LabelRepository labelRepository, RecFileRepository recFileRepository, DateTimeUtils dateTimeUtils, ScheduleAlertService scheduleAlertService, ProcessedStockDataService processedStockDataService) {
         this.recordRepository = recordRepository;
         this.labelRepository = labelRepository;
         this.recFileRepository = recFileRepository;
         this.dateTimeUtils = dateTimeUtils;
         this.scheduleAlertService = scheduleAlertService;
+        this.processedStockDataService = processedStockDataService;
     }
 
     @Transactional
@@ -187,6 +192,50 @@ public class RecordService {
             } catch (IOException e) {
                 logger.warn("Failed to delete file {} \n with exception {}", deletePath, e.getMessage());
             }
+        }
+    }
+
+    /**
+     * Example method showing how to integrate processed stock data with records
+     * This demonstrates the API-based approach for accessing data-processor data
+     */
+    public void enrichRecordWithStockData(Long recordId, String symbol) {
+        try {
+            // Get the record
+            Optional<Record> recordOpt = recordRepository.findById(recordId);
+            if (recordOpt.isEmpty()) {
+                logger.warn("Record not found with ID: {}", recordId);
+                return;
+            }
+            
+            Record record = recordOpt.get();
+            
+            // Get processed stock data for the symbol (last 10 records)
+            List<Map<String, Object>> stockData = processedStockDataService.getProcessedDataBySymbol(symbol, 10);
+            
+            if (!stockData.isEmpty()) {
+                // Get the latest data point
+                Map<String, Object> latestData = stockData.get(0);
+                
+                // Create a summary of the stock data
+                StringBuilder stockSummary = new StringBuilder();
+                stockSummary.append("Latest Stock Data for ").append(symbol).append(":\n");
+                stockSummary.append("Price: $").append(latestData.get("price")).append("\n");
+                stockSummary.append("Change: $").append(latestData.get("change")).append("\n");
+                stockSummary.append("Volume: ").append(latestData.get("volume")).append("\n");
+                stockSummary.append("Timestamp: ").append(latestData.get("timestamp")).append("\n");
+                
+                // Update the record with stock information
+                record.setContent(record.getContent() + "\n\n" + stockSummary.toString());
+                record.setLastModifiedTime(ZonedDateTime.now());
+                
+                recordRepository.save(record);
+                logger.info("Enriched record {} with stock data for symbol: {}", recordId, symbol);
+            } else {
+                logger.warn("No stock data found for symbol: {}", symbol);
+            }
+        } catch (Exception e) {
+            logger.error("Error enriching record {} with stock data for symbol: {}", recordId, symbol, e);
         }
     }
 }
