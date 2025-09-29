@@ -19,7 +19,7 @@ RUN touch ${MARKET_PULSE_PATH}/resources/logs/log.txt
 COPY target/recorder-backend-0.0.1-SNAPSHOT.jar ./recorder-backend.jar
 
 # COPY python requirements.txt into the image
-COPY market_pulse/requirements.txt ${MARKET_PULSE_PATH}/requirements.txt
+COPY market_pulse/ ${MARKET_PULSE_PATH}/
 
 # 1) Install Python 3.12 + venv support
 RUN apt-get update && \

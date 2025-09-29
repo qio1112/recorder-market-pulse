@@ -89,7 +89,7 @@ docker run -d \
   --env-file ../.env \
   -v ${BACKEND_APP_LOG_PATH_SERVER}:${BACKEND_APP_LOG_PATH} \
   -v ${BACKEND_APP_FILE_PATH_SERVER}:${BACKEND_APP_FILE_PATH} \
-  -v ${MARKET_PULSE_PATH_SERVER}:${MARKET_PULSE_PATH} \
+  -v ${MARKET_PULSE_PATH_SERVER}/resources:${MARKET_PULSE_PATH}/resources \
   -p 8080:8080 \
   recorder-backend:latest
 
