@@ -1,4 +1,5 @@
-from main.tasks.update_stock_data import update_stock_data, update_stock_data_flexible
+from main.tasks.update_stock_data import update_stock_data, update_stock_data_flexible, \
+    get_current_minute_stock_price_json_task, get_stock_price_day_history_json_task
 
 import argparse
 
@@ -10,7 +11,7 @@ if __name__ == "__main__":
         "--jobName",
         type=str,
         default="update_stock_data",
-        help="'update_stock_data' for the existing job, 'update_stock_data_flexible' for new flexible job",
+        help="'update_stock_data' for the existing job, 'update_stock_data_flexible' for new flexible job, 'get_current_minute_stock_price_json' for minute level recent stock prices in json, 'get_stock_price_day_history_json' for historical daily stock prices",
     )
 
     parser.add_argument(
@@ -29,14 +30,14 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--symbols",
-        type=lambda s: s.split(','),
+        type=lambda s: [p.strip() for p in s.split(",")],
         default=None,
         help="list of stock symbols, comma separated",
     )
 
     parser.add_argument(
         "--optionSymbols",
-        type=lambda s: s.split(','),
+        type=lambda s: [p.strip() for p in s.split(",")],
         default=None,
         help="list of option symbols, comma separated",
     )
@@ -88,3 +89,9 @@ if __name__ == "__main__":
                                    update_option_data=True,
                                    max_workers=max_workers,
                                    update_today=not update_most_recent_date)
+    elif job_name == "get_current_minute_stock_price_json":
+        get_current_minute_stock_price_json_task(symbols=symbols)
+    elif job_name == "get_stock_price_day_history_json":
+        get_stock_price_day_history_json_task(symbols=symbols)
+    else:
+        raise ValueError(f"Unknown job name: {job_name}")

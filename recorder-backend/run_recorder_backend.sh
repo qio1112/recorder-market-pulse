@@ -47,8 +47,8 @@ else
   echo "Skipping JAR build..."
 fi
 
-# 1) Load env vars from .env.prod
-ENV_FILE="../.env.prod"
+# 1) Load env vars from .env
+ENV_FILE="../.env"
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Error: $ENV_FILE not found. Create it with your prod secrets." >&2
   exit 1
@@ -86,7 +86,7 @@ echo "Starting recorder-backend container..."
 docker run -d \
   --name recorder-backend \
   --restart unless-stopped \
-  --env-file ../.env.prod \
+  --env-file ../.env \
   -v ${BACKEND_APP_LOG_PATH_SERVER}:${BACKEND_APP_LOG_PATH} \
   -v ${BACKEND_APP_FILE_PATH_SERVER}:${BACKEND_APP_FILE_PATH} \
   -v ${MARKET_PULSE_PATH_SERVER}:${MARKET_PULSE_PATH} \

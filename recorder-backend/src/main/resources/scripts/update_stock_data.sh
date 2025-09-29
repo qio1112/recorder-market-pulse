@@ -12,9 +12,11 @@ if [ -z "$MARKET_PULSE_VENV_PATH" ]; then
 fi
 source ${MARKET_PULSE_VENV_PATH}
 
-pip install --upgrade yfinance
+pip install --upgrade yfinance > /dev/null 2>&1
 
-output=$(python -m main.main 2>&1)  # Capture output in a variable
+cmd="python -m main.main $@ 2>&1"
+echo "Running: $cmd"
+output=$(python -m main.main "$@" 2>&1)
 echo "$output"
 
 if echo "$output" | grep -q -i "Failed to update option data for symbols"; then

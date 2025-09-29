@@ -10,6 +10,9 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.sql.Time;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public class ScriptUtil {
 
@@ -34,7 +37,7 @@ public class ScriptUtil {
         }
     }
 
-    public static RunScriptResult runScript(String scriptName) {
+    public static RunScriptResult runScript(String scriptName, Map<String, String> arguments) {
         StringBuilder output = new StringBuilder();
         File scriptFile = null;
         int exitCode;
@@ -45,8 +48,19 @@ public class ScriptUtil {
             scriptFile = extractScript("/scripts/" + scriptName + ".sh");
             result.setTempScriptFile(scriptFile);
 
+            // Prepare the command with arguments
+            List<String> command = new ArrayList<>();
+            command.add("bash");
+            command.add(scriptFile.getAbsolutePath());
+            if (arguments != null) {
+                for (Map.Entry<String, String> e : arguments.entrySet()) {
+                    command.add("--" + e.getKey());
+                    command.add(e.getValue());
+                }
+            }
+
             // Build and start the process to execute the script
-            ProcessBuilder processBuilder = new ProcessBuilder("bash", scriptFile.getAbsolutePath());
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
             processBuilder.redirectErrorStream(true);
             Process process = processBuilder.start();
 

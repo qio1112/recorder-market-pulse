@@ -79,7 +79,7 @@ public class CronService {
         String today = dateTimeUtils.getCurrentDateString();
         String fullTimeName = today + " " + timeName;
         String scriptName = "update_stock_data";
-        RunScriptResult result = ScriptUtil.runScript(scriptName);
+        RunScriptResult result = ScriptUtil.runScript(scriptName, null);
         try {
             if (StringUtils.isNotBlank(adminEmail)) {
                 sendEmailService.sendEmail(adminEmail, "Run script: " + scriptName + " " + fullTimeName, result.getOutput(), null);

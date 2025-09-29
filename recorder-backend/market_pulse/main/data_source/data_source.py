@@ -6,6 +6,7 @@ import pandas as pd
 import os
 from concurrent.futures import ThreadPoolExecutor
 import datetime
+import json
 
 from main.utils.logger_utils import setup_logging
 from main.utils.path_utils import get_resources_path
@@ -501,3 +502,60 @@ def is_today_trade_day_yf():
         return True
     else:
         return False
+
+
+def get_current_minute_stock_price_json(symbols: list[str]):
+    df = yf.download(tickers=symbols,
+                     period="1d",       # e.g. "1d","5d","1mo","6mo","1y","max"
+                     interval="1m",      # e.g. "1m","5m","15m","1h","1d"
+                     group_by="ticker",  # keeps tickers separated in columns
+                     prepost=False,       # False = regular market hours only
+                     auto_adjust=True
+                     )
+    latest_rows = []
+    symbols_not_found = []
+    for sym in symbols:
+        sub = df[sym].dropna()
+        if sub.empty:
+            symbols_not_found.append(sym)
+        else:
+            ts = str(sub.index[-1])
+            row = sub.loc[ts, ["Open","High","Low","Close","Volume"]]
+            latest_rows.append(
+                {"Symbol": sym, "Datetime": ts, **row.to_dict()}
+            )
+
+    result = {
+        "InvalidSymbols": symbols_not_found,
+        "Data": latest_rows
+    }
+
+    return json.dumps(result)
+
+
+def get_stock_price_day_history_json(symbols: list[str]):
+    df = yf.download(tickers=symbols,
+                     period="max",       # e.g. "1d","5d","1mo","6mo","1y","max"
+                     interval="1d",      # e.g. "1m","5m","15m","1h","1d"
+                     group_by="ticker",  # keeps tickers separated in columns
+                     prepost=False,       # False = regular market hours only
+                     auto_adjust=True
+                     )
+    symbols_not_found = []
+    stock_price_by_symbol = []
+    for sym in symbols:
+        sub = df[sym].dropna().reset_index()
+        if sub.empty:
+            symbols_not_found.append(sym)
+        else:
+            sub["Date"] = sub["Date"].dt.strftime("%Y-%m-%d")
+            sub = sub.rename(columns={"Date": "Datetime"})
+            stock_price_by_symbol.append({
+                "Symbol": sym,
+                **sub.to_dict(orient="list")
+            })
+    result = {
+        "InvalidSymbols": symbols_not_found,
+        "Data": stock_price_by_symbol
+    }
+    return json.dumps(result)

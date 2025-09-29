@@ -679,10 +679,53 @@ class RecorderApplicationTests {
         Response response = given()
                 .header("Authorization", "Bearer " + jwtToken)
                 .contentType(ContentType.JSON)
-                .get(baseUrl + "/api/run-script/update_stock_data");
+                .body("{}")
+                .post(baseUrl + "/api/run-script/update_stock_data");
 
         response.then()
                 .statusCode(200);
+    }
+
+    @Test
+    void testRunScriptWithArguments() {
+        prepareTestData();
+        getTestJWTToken();
+        Response response = given()
+                .header("Authorization", "Bearer " + jwtToken)
+                .contentType(ContentType.JSON)
+                .body("""
+                      {
+                        "jobName": "get_current_minute_stock_price_json",
+                        "symbols": "MSFT,AAPL,ARERQR"
+                      }
+                      """)
+                .post(baseUrl + "/api/run-script/update_stock_data");
+
+        response.then()
+                .statusCode(200);
+
+        logger.info("script output: {}", response.body().asString().split("result data:")[1].trim());
+    }
+
+    @Test
+    void testRunScriptWithArguments2() {
+        prepareTestData();
+        getTestJWTToken();
+        Response response = given()
+                .header("Authorization", "Bearer " + jwtToken)
+                .contentType(ContentType.JSON)
+                .body("""
+                      {
+                        "jobName": "get_stock_price_day_history_json",
+                        "symbols": "MSFT,AAPL,ARERQR"
+                      }
+                      """)
+                .post(baseUrl + "/api/run-script/update_stock_data");
+
+        response.then()
+                .statusCode(200);
+
+        logger.info("script output: {}", response.body().asString().split("result data:")[1].trim());
     }
 
     @Test
@@ -692,11 +735,12 @@ class RecorderApplicationTests {
         Response response = given()
                 .header("Authorization", "Bearer " + jwtToken)
                 .contentType(ContentType.JSON)
-                .get(baseUrl + "/api/run-script/update_stock_data");
+                .body("{}")
+                .post(baseUrl + "/api/run-script/update_stock_data");
 
         response.then()
                 .statusCode(403);
-
+        logger.info("script output: {}", response.body().asString().split("result data:")[1].trim());
     }
 
 //    @Test

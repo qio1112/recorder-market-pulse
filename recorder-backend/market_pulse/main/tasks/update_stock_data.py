@@ -2,7 +2,7 @@ from pathlib import Path
 import os
 from datetime import datetime
 
-from main.data_source.data_source import StockPriceData, StockOptionData, get_symbols_from_file, is_today_trade_day_yf
+from main.data_source.data_source import StockPriceData, StockOptionData, get_symbols_from_file, is_today_trade_day_yf, get_current_minute_stock_price_json, get_stock_price_day_history_json
 from main.utils.logger_utils import setup_logging
 from main.utils.path_utils import get_resources_path
 
@@ -82,3 +82,19 @@ def update_stock_data_flexible(symbols=None, symbols_path=None, task_label="clos
         sod.update_option_data_from_yf(symbols, revised_on_date=update_date, max_workers=max_workers, time_label=task_label)
     logger.info("\n====================== Stock data updated  =======================\n\n")
 
+
+def get_current_minute_stock_price_json_task(symbols: list[str]):
+    logger = setup_logging("get_current_minute_stock_price_json")
+    if symbols is None or len(symbols) == 0:
+        logger.info("No symbols provided, exiting task.")
+        return
+    result = get_current_minute_stock_price_json(symbols)
+    logger.info("result data:" + result)
+
+
+def get_stock_price_day_history_json_task(symbols: list[str]):
+    if symbols is None or len(symbols) == 0:
+        return
+    logger = setup_logging("get_current_minute_stock_price_json")
+    result = get_stock_price_day_history_json(symbols)
+    logger.info("result data:" + result)
