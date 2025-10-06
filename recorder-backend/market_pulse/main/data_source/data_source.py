@@ -7,6 +7,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 import datetime
 import json
+import requests
 
 from main.utils.logger_utils import setup_logging
 from main.utils.path_utils import get_resources_path
@@ -289,10 +290,11 @@ class StockOptionData:
         retry_count = 0
         while remaining_symbols is not None and len(remaining_symbols) > 0:
             if retry_count > 7:
-                logger.error(f"Failed to update option data for symbols {remaining_symbols} for date {revised_on_date} after 7 retries!")
+                logger.error(
+                    f"Failed to update option data for symbols {remaining_symbols} for date {revised_on_date} after 7 retries!")
                 break
             if retry_count > 0:
-                wait_time = (retry_count+2) ** 2;
+                wait_time = (retry_count + 2) ** 2
                 logger.info(f"Retry getting option data after {wait_time} seconds....")
                 time.sleep(wait_time)
             with ThreadPoolExecutor(max_workers=num_workers) as executor:
@@ -314,7 +316,6 @@ class StockOptionData:
             logger.error(f"Failed to update option data for symbols: {remaining_symbols}")
         else:
             logger.info("Finished updating option data for all symbols")
-
 
     def get_option_chain_path(self, symbol: str, option_type: str, expire_date: str, on_date: str = None,
                               mkdir: bool = False, time_label: str = "close"):
@@ -386,8 +387,8 @@ class StockOptionData:
                             file_exists = os.path.exists(file_path)
                             call_df.to_csv(file_path, mode="a", sep="\t", header=not file_exists)
                         # else:
-                            # logger.warning(
-                            #     f"Call options time_label={time_label} for {symbol} call exp_date={exp_date} is already updated on {call_latest_updated_date}!")
+                        # logger.warning(
+                        #     f"Call options time_label={time_label} for {symbol} call exp_date={exp_date} is already updated on {call_latest_updated_date}!")
                     else:
                         logger.warning(f"No CALL data for {symbol} for exp_date {exp_date}")
 
@@ -402,8 +403,8 @@ class StockOptionData:
                             file_exists = os.path.exists(file_path)
                             put_df.to_csv(file_path, mode="a", sep="\t", header=not file_exists)
                         # else:
-                            # logger.warning(
-                            #     f"Put options for {symbol} call exp_date={exp_date} is already updated on {put_latest_updated_date}!")
+                        # logger.warning(
+                        #     f"Put options for {symbol} call exp_date={exp_date} is already updated on {put_latest_updated_date}!")
                     else:
                         logger.warning(f"No PUT data for {symbol} for exp_date {exp_date}")
 
@@ -506,10 +507,10 @@ def is_today_trade_day_yf():
 
 def get_current_minute_stock_price_json(symbols: list[str]):
     df = yf.download(tickers=symbols,
-                     period="1d",       # e.g. "1d","5d","1mo","6mo","1y","max"
-                     interval="1m",      # e.g. "1m","5m","15m","1h","1d"
+                     period="1d",  # e.g. "1d","5d","1mo","6mo","1y","max"
+                     interval="1m",  # e.g. "1m","5m","15m","1h","1d"
                      group_by="ticker",  # keeps tickers separated in columns
-                     prepost=False,       # False = regular market hours only
+                     prepost=False,  # False = regular market hours only
                      auto_adjust=True
                      )
     latest_rows = []
@@ -520,7 +521,7 @@ def get_current_minute_stock_price_json(symbols: list[str]):
             symbols_not_found.append(sym)
         else:
             ts = str(sub.index[-1])
-            row = sub.loc[ts, ["Open","High","Low","Close","Volume"]]
+            row = sub.loc[ts, ["Open", "High", "Low", "Close", "Volume"]]
             latest_rows.append(
                 {"Symbol": sym, "Datetime": ts, **row.to_dict()}
             )
@@ -535,10 +536,10 @@ def get_current_minute_stock_price_json(symbols: list[str]):
 
 def get_stock_price_day_history_json(symbols: list[str]):
     df = yf.download(tickers=symbols,
-                     period="max",       # e.g. "1d","5d","1mo","6mo","1y","max"
-                     interval="1d",      # e.g. "1m","5m","15m","1h","1d"
+                     period="max",  # e.g. "1d","5d","1mo","6mo","1y","max"
+                     interval="1d",  # e.g. "1m","5m","15m","1h","1d"
                      group_by="ticker",  # keeps tickers separated in columns
-                     prepost=False,       # False = regular market hours only
+                     prepost=False,  # False = regular market hours only
                      auto_adjust=True
                      )
     symbols_not_found = []
@@ -559,3 +560,41 @@ def get_stock_price_day_history_json(symbols: list[str]):
         "Data": stock_price_by_symbol
     }
     return json.dumps(result)
+
+
+def get_fear_greed_index_cnn(update_file: bool = False):
+    URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+
+    HEADERS = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/117.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.cnn.com/markets/fear-and-greed",
+        "Origin": "https://www.cnn.com",
+        "Connection": "keep-alive",
+    }
+    try:
+        resp = requests.get(URL, headers=HEADERS)
+        resp.raise_for_status()
+        data = resp.json()
+
+        points = data["fear_and_greed_historical"]["data"]
+        latest = points[-1]
+        timestamp = datetime.datetime.fromtimestamp(latest["x"] / 1000)
+        value = latest["y"]
+    except Exception as e:
+        logger.error(f"Error fetching Fear & Greed Index data: {e}")
+        return None
+    result = f"{timestamp}, {value:.2f}"
+
+    if update_file:
+        file_path = get_resources_path("fear_greed_index_cnn.txt")
+        with open(file_path, "a") as f:
+            f.write(result + "\n")
+        logger.info(f"Fear & Greed Index (CNN) updated to {file_path}")
+
+    return result

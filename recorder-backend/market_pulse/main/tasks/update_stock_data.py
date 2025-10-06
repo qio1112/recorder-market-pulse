@@ -2,7 +2,9 @@ from pathlib import Path
 import os
 from datetime import datetime
 
-from main.data_source.data_source import StockPriceData, StockOptionData, get_symbols_from_file, is_today_trade_day_yf, get_current_minute_stock_price_json, get_stock_price_day_history_json
+from main.data_source.data_source import (StockPriceData, StockOptionData, get_symbols_from_file,
+                                          is_today_trade_day_yf, get_current_minute_stock_price_json, get_stock_price_day_history_json,
+                                          get_fear_greed_index_cnn)
 from main.utils.logger_utils import setup_logging
 from main.utils.path_utils import get_resources_path
 
@@ -98,3 +100,9 @@ def get_stock_price_day_history_json_task(symbols: list[str]):
     logger = setup_logging("get_current_minute_stock_price_json")
     result = get_stock_price_day_history_json(symbols)
     logger.info("result data:" + result)
+
+
+def get_fear_greed_index_data():
+    logger = setup_logging("get_fear_greed_index_data")
+    data = get_fear_greed_index_cnn(update_file=True)
+    logger.info(f"Fear & Greed Index data: {data}")
