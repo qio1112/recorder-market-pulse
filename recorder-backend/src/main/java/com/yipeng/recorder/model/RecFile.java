@@ -33,6 +33,10 @@ public class RecFile {
     @JoinColumn(name = "uploaded_by", nullable = false)
     private User uploadedBy;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "record_id")
+    private Record record;
+
     public RecFile() {}
 
     public RecFile(String fileName, RecFileType fileType, String filePath, User uploadedBy) {
@@ -98,5 +102,13 @@ public class RecFile {
 
     public void setFileType(RecFileType fileType) {
         this.fileType = fileType;
+    }
+
+    public Record getRecord() {
+        return record;
+    }
+
+    public void setRecord(Record record) {
+        this.record = record;
     }
 }

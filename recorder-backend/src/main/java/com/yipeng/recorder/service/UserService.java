@@ -49,11 +49,19 @@ public class UserService {
     }
 
     public boolean userCanSeeRecord(User user, Record record) {
-        return user.isAdmin() || record.isPublic() || record.getCreatedBy().getId().equals(user.getId());
+        return userCanSeeResource(user, record.isPublic(), record.getCreatedBy());
     }
 
     public boolean userCanModifyRecord(User user, Record record) {
-        return user.isAdmin() || record.getCreatedBy().getId().equals(user.getId());
+        return userCanModifyResource(user, record.getCreatedBy());
+    }
+
+    public boolean userCanSeeResource(User user, boolean resourceIsPublic, User resourceOwner) {
+        return user.isAdmin() || resourceIsPublic || resourceOwner.getId().equals(user.getId());
+    }
+
+    public boolean userCanModifyResource(User user, User resourceOwner) {
+        return user.isAdmin() || resourceOwner.getId().equals(user.getId());
     }
 }
 

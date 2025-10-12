@@ -79,6 +79,18 @@ public class RecordController {
         // Create a new Record object
         Record newRecord = new Record(newRecordRequest.getTitle(), user, newRecordRequest.getContent(), newRecordRequest.isPublic());
 
+        AlertSchedule alertSchedule = getAlertSchedule(newRecordRequest, newRecord);
+
+        // get or create labels, save files, create recFiles objects
+        List<RecFile> imageFiles = handleMultipartFiles(images, RecFileType.IMAGE.name(), imageFileSizeLimit, user);
+        List<RecFile> regularFiles = handleMultipartFiles(files, RecFileType.REGULAR_FILE.name(), regularFileSizeLimit, user);
+
+        // Use the service to handle the creation, including labels and recFiles
+        newRecord = recordService.createRecord(newRecord, imageFiles, regularFiles, newRecordRequest.getLabels(), user, alertSchedule, newRecordRequest.isPublic());
+        return ResponseEntity.status(HttpStatus.CREATED).body(newRecord);
+    }
+
+    private static AlertSchedule getAlertSchedule(NewRecordRequest newRecordRequest, Record newRecord) {
         AlertSchedule alertSchedule = null;
         if (newRecordRequest.getLabels().contains("ALERT")
                 && newRecordRequest.getAlertType() != null
@@ -86,14 +98,7 @@ public class RecordController {
                     || (newRecordRequest.getAlertType() == AlertType.RECURRING && newRecordRequest.getRecurringAlertWeekDays() != null && !newRecordRequest.getRecurringAlertWeekDays().isBlank())) {
             alertSchedule = new AlertSchedule(newRecord, newRecordRequest.getAlertType(), newRecordRequest.getAlertTime(), newRecordRequest.getRecurringAlertWeekDays());
         }
-
-        // get or create labels, save files, create recFiles objects
-        List<RecFile> imageFiles = handleMultipartFiles(images, RecFileType.IMAGE.name(), imageFileSizeLimit, user);
-        List<RecFile> regularFiles = handleMultipartFiles(files, RecFileType.REGULAR_FILE.name(), regularFileSizeLimit, user);
-
-        // Use the service to handle the creation, including labels and recFiles
-        newRecord = recordService.createRecord(newRecord, imageFiles, regularFiles, newRecordRequest.getLabels(), user, alertSchedule);
-        return ResponseEntity.status(HttpStatus.CREATED).body(newRecord);
+        return alertSchedule;
     }
 
     private List<RecFile> handleMultipartFiles(List<MultipartFile> multipartFiles, String fileType, long fileSizeLimit, User user) {
@@ -151,13 +156,7 @@ public class RecordController {
         record.setContent(updateRecordRequest.getContent());
         record.setPublic(updateRecordRequest.isPublic());
 
-        AlertSchedule alertSchedule = null;
-        if (updateRecordRequest.getLabels().contains("ALERT")
-                && updateRecordRequest.getAlertType() != null
-                && (updateRecordRequest.getAlertType() == AlertType.ONE_TIME && updateRecordRequest.getAlertTime() != null)
-                || (updateRecordRequest.getAlertType() == AlertType.RECURRING && updateRecordRequest.getRecurringAlertWeekDays() != null && !updateRecordRequest.getRecurringAlertWeekDays().isBlank())) {
-            alertSchedule = new AlertSchedule(record, updateRecordRequest.getAlertType(), updateRecordRequest.getAlertTime(), updateRecordRequest.getRecurringAlertWeekDays());
-        }
+        AlertSchedule alertSchedule = getAlertSchedule(updateRecordRequest, record);
 
         // find selected images and files to be deleted if really exist in the record
         Set<Long> existingFileIds = record.getRecFiles().stream().map(RecFile::getId).collect(Collectors.toSet());
@@ -170,9 +169,23 @@ public class RecordController {
         List<RecFile> regularFiles = handleMultipartFiles(files, RecFileType.REGULAR_FILE.name(), regularFileSizeLimit, user);
 
         // update and save record, labels, recFiles
-        record = recordService.updateRecord(record, deleteFileIds, imageFiles, regularFiles, updateRecordRequest.getLabels(), user, alertSchedule);
+        record = recordService.updateRecord(record, deleteFileIds, imageFiles, regularFiles, updateRecordRequest.getLabels(), user, alertSchedule,
+                updateRecordRequest.isCancelAlert(), updateRecordRequest.isPublic());
 
         return ResponseEntity.ok().body(record);
+    }
+
+    private static AlertSchedule getAlertSchedule(UpdateRecordRequest updateRecordRequest, Record record) {
+        AlertSchedule alertSchedule = null;
+        if (!updateRecordRequest.isCancelAlert()) {
+            if (updateRecordRequest.getLabels().contains("ALERT")
+                    && updateRecordRequest.getAlertType() != null
+                    && (updateRecordRequest.getAlertType() == AlertType.ONE_TIME && updateRecordRequest.getAlertTime() != null)
+                    || (updateRecordRequest.getAlertType() == AlertType.RECURRING && updateRecordRequest.getRecurringAlertWeekDays() != null && !updateRecordRequest.getRecurringAlertWeekDays().isBlank())) {
+                alertSchedule = new AlertSchedule(record, updateRecordRequest.getAlertType(), updateRecordRequest.getAlertTime(), updateRecordRequest.getRecurringAlertWeekDays());
+            }
+        }
+        return alertSchedule;
     }
 
     @GetMapping(value="/record/{id}")

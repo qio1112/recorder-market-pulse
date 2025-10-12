@@ -4,6 +4,7 @@ import com.yipeng.recorder.model.RecFile;
 import com.yipeng.recorder.repository.RecFileRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -21,15 +22,13 @@ public class RecFileService {
         return recFileRepository.findById(id).orElse(null);
     }
 
-    public RecFile save(RecFile recFile) {
-        return recFileRepository.save(recFile);
-    }
-
-    public List<RecFile> saveAll(List<RecFile> recFiles) {
-        return recFileRepository.saveAll(recFiles);
-    }
-
-    public void deleteByIds(List<Long> ids) {
-        recFileRepository.deleteByIds(ids);
+    @Transactional(readOnly = true)
+    public Boolean isRecFilePublic(Long recFileId) {
+        // Use JOIN FETCH to eagerly load the record data
+        RecFile recFile = recFileRepository.findByIdWithRecord(recFileId).orElse(null);
+        if (recFile != null && recFile.getRecord() != null) {
+            return recFile.getRecord().isPublic();
+        }
+        return false; // Return null if RecFile or Record not found
     }
 }

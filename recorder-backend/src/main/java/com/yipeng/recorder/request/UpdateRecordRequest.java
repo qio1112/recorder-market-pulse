@@ -16,6 +16,8 @@ public class UpdateRecordRequest {
     private List<String> labels = new ArrayList<>(); // this contains all labels
     private List<Long> removeFileIDs = new ArrayList<>();
 
+    private boolean cancelAlert;
+
     private AlertType alertType;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
@@ -92,5 +94,13 @@ public class UpdateRecordRequest {
 
     public void setRecurringAlertWeekDays(String recurringAlertWeekDays) {
         this.recurringAlertWeekDays = recurringAlertWeekDays;
+    }
+
+    public boolean isCancelAlert() {
+        return cancelAlert;
+    }
+
+    public void setCancelAlert(boolean cancelAlert) {
+        this.cancelAlert = cancelAlert;
     }
 }

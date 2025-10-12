@@ -2,6 +2,7 @@ package com.yipeng.recorder.service;
 
 import com.yipeng.recorder.model.*;
 import com.yipeng.recorder.model.Record;
+import com.yipeng.recorder.repository.AlertScheduleRepository;
 import com.yipeng.recorder.repository.LabelRepository;
 import com.yipeng.recorder.repository.RecFileRepository;
 import com.yipeng.recorder.repository.RecordRepository;
@@ -40,6 +41,8 @@ public class RecordService {
 
     private final RecFileRepository recFileRepository;
 
+    private final AlertScheduleRepository alertScheduleRepository;
+
     private final DateTimeUtils dateTimeUtils;
 
     private final ScheduleAlertService scheduleAlertService;
@@ -47,17 +50,24 @@ public class RecordService {
     private final ProcessedStockDataService processedStockDataService;
 
     @Autowired
-    public RecordService(RecordRepository recordRepository, LabelRepository labelRepository, RecFileRepository recFileRepository, DateTimeUtils dateTimeUtils, ScheduleAlertService scheduleAlertService, ProcessedStockDataService processedStockDataService) {
+    public RecordService(RecordRepository recordRepository,
+                         LabelRepository labelRepository,
+                         RecFileRepository recFileRepository,
+                         DateTimeUtils dateTimeUtils,
+                         ScheduleAlertService scheduleAlertService,
+                         ProcessedStockDataService processedStockDataService,
+                         AlertScheduleRepository alertScheduleRepository) {
         this.recordRepository = recordRepository;
         this.labelRepository = labelRepository;
         this.recFileRepository = recFileRepository;
         this.dateTimeUtils = dateTimeUtils;
         this.scheduleAlertService = scheduleAlertService;
         this.processedStockDataService = processedStockDataService;
+        this.alertScheduleRepository = alertScheduleRepository;
     }
 
     @Transactional
-    public Record createRecord(Record record, List<RecFile> images, List<RecFile> regularFiles, List<String> labelNames, User user, AlertSchedule alertSchedule) {
+    public Record createRecord(Record record, List<RecFile> images, List<RecFile> regularFiles, List<String> labelNames, User user, AlertSchedule alertSchedule, boolean isPublic) {
         List<Label> labels = createLabelsIfNotExistThenGet(labelNames, user, true);
         record.setLabels(labels);
         List<RecFile> allRecFiles = new ArrayList<>(images);
@@ -68,7 +78,7 @@ public class RecordService {
         record.setAlertSchedule(alertSchedule);
         Record newRecord = recordRepository.save(record);
         scheduleAlertService.scheduleAlert(alertSchedule);
-        logger.info("Created new record. ID: {}, title: {}, createdBy: {}", newRecord.getId(), newRecord.getTitle(), newRecord.getCreatedBy().getUsername());
+        logger.info("Created new record. ID: {}, title: {}, createdBy: {}, isPublic: {}", newRecord.getId(), newRecord.getTitle(), newRecord.getCreatedBy().getUsername(), isPublic);
         return newRecord;
     }
 
@@ -77,7 +87,8 @@ public class RecordService {
     }
 
     @Transactional
-    public Record updateRecord(Record record, List<Long> deleteFileIds, List<RecFile> images, List<RecFile> regularFiles, List<String> labelNames, User user, AlertSchedule alertSchedule) {
+    public Record updateRecord(Record record, List<Long> deleteFileIds, List<RecFile> images, List<RecFile> regularFiles, List<String> labelNames, User user,
+                               AlertSchedule alertSchedule, boolean isCancelAlert, boolean isPublic) {
         // create and update labels
         List<Label> labels = createLabelsIfNotExistThenGet(labelNames, user, false);
         record.setLabels(labels);
@@ -89,17 +100,47 @@ public class RecordService {
         List<RecFile> allRecFiles = new ArrayList<>(images);
         allRecFiles.addAll(regularFiles);
         recFileRepository.saveAll(allRecFiles);
+
+        // Handle alert schedule update properly
         AlertSchedule oldAlertSchedule = record.getAlertSchedule();
+        if (isCancelAlert) {
+            // Remove alert schedule if cancel alert is requested
+            if (oldAlertSchedule != null) {
+                alertScheduleRepository.delete(oldAlertSchedule);
+            }
+            record.setAlertSchedule(null);
+        } else if (alertSchedule != null) {
+            if (oldAlertSchedule != null) {
+                // Update existing alert schedule instead of creating new one
+                oldAlertSchedule.setAlertType(alertSchedule.getAlertType());
+                oldAlertSchedule.setTimeAt(alertSchedule.getTimeAt());
+                oldAlertSchedule.setWeekdays(alertSchedule.getWeekdays());
+                record.setAlertSchedule(oldAlertSchedule);
+            } else {
+                // Create new alert schedule if none exists
+                record.setAlertSchedule(alertSchedule);
+            }
+        }
+
         // add new files to record
         record.getRecFiles().addAll(allRecFiles);
         record.setLastModifiedTime(ZonedDateTime.now());
-        record.setAlertSchedule(alertSchedule);
+        record.setPublic(isPublic);
         Record savedRecord = recordRepository.save(record);
-        // remove existing schedule first, then add new one
-        if (oldAlertSchedule == null || !oldAlertSchedule.isSameAlert(alertSchedule)) {
+
+        // Handle scheduling changes
+        if (isCancelAlert) {
+            // Alert schedule removed
             scheduleAlertService.cancelAlertsForRecord(record.getId());
-            scheduleAlertService.scheduleAlert(alertSchedule);
+        } else if (oldAlertSchedule == null && alertSchedule != null) {
+            // New alert schedule added
+            scheduleAlertService.scheduleAlert(savedRecord.getAlertSchedule());
+        } else if (oldAlertSchedule != null && alertSchedule != null && !oldAlertSchedule.isSameAlert(alertSchedule)) {
+            // Alert schedule modified
+            scheduleAlertService.cancelAlertsForRecord(record.getId());
+            scheduleAlertService.scheduleAlert(savedRecord.getAlertSchedule());
         }
+
         deleteRecFilesByPaths(pathsToBeDeleted);
         logger.info("Updated record. ID: {}, title: {}, createdBy: {}", record.getId(), record.getTitle(), record.getCreatedBy().getUsername());
         return savedRecord;

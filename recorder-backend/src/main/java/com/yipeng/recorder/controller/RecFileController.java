@@ -1,8 +1,11 @@
 package com.yipeng.recorder.controller;
 
+import com.yipeng.recorder.exception.ForbiddenException;
 import com.yipeng.recorder.exception.ResourceNotFoundException;
 import com.yipeng.recorder.model.RecFile;
+import com.yipeng.recorder.model.User;
 import com.yipeng.recorder.service.RecFileService;
+import com.yipeng.recorder.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -28,16 +31,23 @@ public class RecFileController {
 
     private final RecFileService recFileService;
 
+    private final UserService userService;
+
+
     @Autowired
-    public RecFileController(RecFileService recFileService) {
+    public RecFileController(RecFileService recFileService, UserService userService) {
+        this.userService = userService;
         this.recFileService = recFileService;
     }
 
-    @GetMapping("/{fileID}")
-    public ResponseEntity<Resource> serveFile(@PathVariable long fileID) {
+    @GetMapping(value="/{fileID}")
+    public ResponseEntity<Resource> serveFile(@PathVariable("fileID") long fileID) {
 
+        User user = userService.findUserFromAuthentication();
         RecFile recFile = recFileService.findById(fileID);
-
+        if (!userService.userCanSeeResource(user, recFileService.isRecFilePublic(fileID), recFile.getUploadedBy())) {
+            throw new ForbiddenException();
+        }
         try {
             Path filePath = recFile.getPath();
             Resource resource = new UrlResource(filePath.toUri());
