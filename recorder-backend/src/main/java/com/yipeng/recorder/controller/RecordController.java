@@ -27,7 +27,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -229,7 +228,7 @@ public class RecordController {
                 listRecordsRequest.getTitleContains(),
                 listRecordsRequest.getCreationAfterDate(),listRecordsRequest.getCreationBeforeDate(),
                 listRecordsRequest.getModifiedAfterDate(), listRecordsRequest.getModifiedBeforeDate(),
-                listRecordsRequest.getPublic(),
+                listRecordsRequest.getPublic(), listRecordsRequest.getIsCreatedByUserOnly(),
                 listRecordsRequest.getPageSize(), listRecordsRequest.getPage(), listRecordsRequest.getSortBy(),
                 user);
 

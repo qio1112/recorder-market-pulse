@@ -176,7 +176,8 @@ public class RecordService {
     public Page<Record> listRecordsCoreDataWithFilter(List<String> labels, String title,
                                                      LocalDate creationAfterDate, LocalDate creationBeforeDate,
                                                      LocalDate modifiedAfterDate, LocalDate modifiedBeforeDate,
-                                                     Boolean isPublic, Integer pageSize, Integer pageNum, String sortBy, User user) {
+                                                     Boolean isPublic, Boolean isCreatedByUserOnly,
+                                                      Integer pageSize, Integer pageNum, String sortBy, User user) {
 
         if (labels == null) {
             labels = new ArrayList<>();
@@ -189,7 +190,8 @@ public class RecordService {
 
         return recordRepository.filterRecords(labels, (long)labels.size(), title,
                 creationAfterDateTime, creationBeforeDateTime, modifiedAfterDateTime, modifiedBeforeDateTime,
-                isPublic, user.getId(), user.isAdmin(), page);
+                isPublic, isCreatedByUserOnly,
+                user.getId(), user.isAdmin(), page);
     }
 
     private Sort parseSortByForRecords(String sortBy) {

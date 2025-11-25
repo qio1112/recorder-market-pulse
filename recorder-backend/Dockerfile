@@ -3,6 +3,8 @@
 # Use a slim JRE base
 FROM eclipse-temurin:17 AS runtime
 
+ENV TZ=${APP_TIMEZONE}
+
 # Set working directory
 WORKDIR /app
 

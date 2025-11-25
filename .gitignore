@@ -1,5 +1,18 @@
 target/
 
+### Node / Frontend ###
+node_modules/
+dist/
+coverage/
+.cache/
+.parcel-cache/
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
 ### STS ###
 .apt_generated
 .classpath
@@ -34,6 +47,9 @@ build/
 /uploaded_files/
 /.env.prod
 /.env
+/.env.local
+/.env.development
+/.env.test
 
 ### Python ###
 __pycache__/

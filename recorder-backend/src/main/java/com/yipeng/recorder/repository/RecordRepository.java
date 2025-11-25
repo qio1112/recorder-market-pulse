@@ -64,6 +64,7 @@ public interface RecordRepository extends JpaRepository<Record, Long> {
       AND (:modifiedBeforeDate is NULL OR r.lastModifiedTime <= :modifiedBeforeDate)
       AND (:isPublic IS NULL OR r.isPublic = :isPublic)
       AND (:userIsAdmin = true OR r.createdBy.id = :userId OR r.isPublic = true)
+      AND (:isCreatedByUserOnly = false OR (:isCreatedByUserOnly = true AND r.createdBy.id = :userId))
     """)
     Page<Record> filterRecords(
             @Param("labels") List<String> labels,
@@ -74,6 +75,7 @@ public interface RecordRepository extends JpaRepository<Record, Long> {
             @Param("modifiedAfterDate") ZonedDateTime modifiedAfterDate,
             @Param("modifiedBeforeDate") ZonedDateTime modifiedBeforeDate,
             @Param("isPublic") Boolean isPublic,
+            @Param("isCreatedByUserOnly") Boolean isCreatedByUserOnly,
             @Param("userId") Long userId,
             @Param("userIsAdmin") Boolean isAdmin,
             Pageable pageable

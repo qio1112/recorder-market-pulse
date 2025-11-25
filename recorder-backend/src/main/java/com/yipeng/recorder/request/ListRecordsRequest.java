@@ -12,6 +12,7 @@ public class ListRecordsRequest {
     private LocalDate modifiedAfterDate;
     private LocalDate modifiedBeforeDate;
     private Boolean isPublic;
+    private Boolean isCreatedByUserOnly;
     private Integer pageSize;
     private Integer page;
     private String sortBy = "";
@@ -94,5 +95,13 @@ public class ListRecordsRequest {
 
     public void setModifiedBeforeDate(LocalDate modifiedBeforeDate) {
         this.modifiedBeforeDate = modifiedBeforeDate;
+    }
+
+    public Boolean getIsCreatedByUserOnly() {
+        return isCreatedByUserOnly;
+    }
+
+    public void setIsCreatedByUserOnly(Boolean isCreatedByUserOnly) {
+        this.isCreatedByUserOnly = isCreatedByUserOnly;
     }
 }

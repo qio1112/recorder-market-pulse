@@ -89,6 +89,7 @@ public class Record {
                     Map<String, String> map = new HashMap<>();
                     map.put("fileID", String.valueOf(file.getId()));
                     map.put("filename", file.getFileName());
+                    map.put("fileType", file.getFileType().name());
                     return map;
                 })
                 .toList();
