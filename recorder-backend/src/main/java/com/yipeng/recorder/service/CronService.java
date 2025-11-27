@@ -30,50 +30,50 @@ public class CronService {
         this.dateTimeUtils = dateTimeUtils;
     }
 
-    @Scheduled(cron = "0 5 10 * * *")
-    public void runUpdateStockInfoTask1005() {
-        updateStockJob("10:05");
-    }
-
-    @Scheduled(cron = "0 30 13 * * *")
-    public void runUpdateStockInfoTask1330() {
-        updateStockJob("13:30");
-    }
-
-    @Scheduled(cron = "0 30 16 * * *")
-    public void runUpdateStockInfoTask1630() {
-        updateStockJob("16:30");
-    }
-
-    @Scheduled(cron = "0 0 21 * * *")
-    public void runUpdateStockInfoTask2100() {
-        updateStockJob("21:00");
-    }
-
-    @Scheduled(cron = "0 0 8 * * *")
-    public void runStatusUpdate0800() {
-        serverStatusEmail("08:00");
-    }
-
-    @Scheduled(cron = "0 0 12 * * *")
-    public void runStatusUpdate1200() {
-        serverStatusEmail("12:00");
-    }
-
-    @Scheduled(cron = "0 0 16 * * *")
-    public void runStatusUpdate1600() {
-        serverStatusEmail("16:00");
-    }
-
-    @Scheduled(cron = "0 0 20 * * *")
-    public void runStatusUpdate2000() {
-        serverStatusEmail("20:00");
-    }
-
-    @Scheduled(cron = "0 0 23 * * *")
-    public void runStatusUpdate2300() {
-        serverStatusEmail("23:00");
-    }
+//    @Scheduled(cron = "0 5 10 * * *")
+//    public void runUpdateStockInfoTask1005() {
+//        updateStockJob("10:05");
+//    }
+//
+//    @Scheduled(cron = "0 30 13 * * *")
+//    public void runUpdateStockInfoTask1330() {
+//        updateStockJob("13:30");
+//    }
+//
+//    @Scheduled(cron = "0 30 16 * * *")
+//    public void runUpdateStockInfoTask1630() {
+//        updateStockJob("16:30");
+//    }
+//
+//    @Scheduled(cron = "0 0 21 * * *")
+//    public void runUpdateStockInfoTask2100() {
+//        updateStockJob("21:00");
+//    }
+//
+//    @Scheduled(cron = "0 0 8 * * *")
+//    public void runStatusUpdate0800() {
+//        serverStatusEmail("08:00");
+//    }
+//
+//    @Scheduled(cron = "0 0 12 * * *")
+//    public void runStatusUpdate1200() {
+//        serverStatusEmail("12:00");
+//    }
+//
+//    @Scheduled(cron = "0 0 16 * * *")
+//    public void runStatusUpdate1600() {
+//        serverStatusEmail("16:00");
+//    }
+//
+//    @Scheduled(cron = "0 0 20 * * *")
+//    public void runStatusUpdate2000() {
+//        serverStatusEmail("20:00");
+//    }
+//
+//    @Scheduled(cron = "0 0 23 * * *")
+//    public void runStatusUpdate2300() {
+//        serverStatusEmail("23:00");
+//    }
 
     public void updateStockJob(String timeName) {
         String today = dateTimeUtils.getCurrentDateString();

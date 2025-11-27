@@ -28,7 +28,7 @@ public class AlertSchedule {
     private ZonedDateTime timeAt; // the time of sending alerts, use the time for one-time directly, and use time part for recurring
 
     @Column(name = "weekdays")
-    private String weekdays; // For recurring alerts, e.g., "MON,TUE,SAT"
+    private String weekdays; // For recurring alerts, e.g., "MONDAY,TUESDAY,SATURDAY"
 
     @Column(name = "last_sent_at")
     private ZonedDateTime lastSentAt;

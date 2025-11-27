@@ -8,6 +8,7 @@ import com.yipeng.recorder.repository.UserRepository;
 import com.yipeng.recorder.request.AuthenticationRequest;
 import com.yipeng.recorder.request.SignUpRequest;
 import com.yipeng.recorder.service.SendEmailService;
+import com.yipeng.recorder.service.UserService;
 import com.yipeng.recorder.utils.JwtUtil;
 import com.yipeng.recorder.utils.RoleType;
 import org.slf4j.Logger;
@@ -37,6 +38,8 @@ public class AuthenticationController {
 
     private final UserDetailsService userDetailsService;
 
+    private final UserService userService;
+
     private final UserRepository userRepository;
 
     private final PasswordEncoder passwordEncoder;
@@ -50,6 +53,7 @@ public class AuthenticationController {
     public AuthenticationController(AuthenticationManager authenticationManager,
                                     JwtUtil jwtUtil,
                                     UserDetailsService userDetailsService,
+                                    UserService userService,
                                     UserRepository userRepository,
                                     PasswordEncoder passwordEncoder,
                                     RoleRepository roleRepository,
@@ -57,6 +61,7 @@ public class AuthenticationController {
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
         this.userDetailsService = userDetailsService;
+        this.userService = userService;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.roleRepository = roleRepository;
@@ -103,6 +108,17 @@ public class AuthenticationController {
         logger.info("User created: {}", user.getUsername());
         sendEmailService.sendEmail(user.getEmail(), "Recorder User Created", "Username: " + user.getUsername(), null);
         return ResponseEntity.ok("Created new user: " + user.getUsername());
+    }
+
+    @GetMapping("/user-info")
+    public ResponseEntity<?> getUserInfo() {
+        User user = userService.findUserFromAuthentication();
+        Map<String, String> response = new HashMap<>();
+        response.put("username", user.getUsername());
+        response.put("email", user.getEmail());
+        response.put("creationTime", user.getCreationTime().toString());
+        response.put("isAdmin", String.valueOf(user.isAdmin()));
+        return ResponseEntity.ok(response);
     }
 }
 
