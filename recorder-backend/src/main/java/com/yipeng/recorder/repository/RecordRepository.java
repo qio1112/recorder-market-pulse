@@ -53,9 +53,9 @@ public interface RecordRepository extends JpaRepository<Record, Long> {
                                                                        Pageable pageable);
 
     @Query("""
-    SELECT r FROM Record r
-    LEFT JOIN FETCH r.createdBy
-    LEFT JOIN FETCH r.labels
+    SELECT DISTINCT r FROM Record r
+    LEFT JOIN r.createdBy
+    LEFT JOIN r.labels
     WHERE (:labels IS NULL OR (SELECT COUNT(label) FROM r.labels label WHERE label.labelName IN :labels) = :labelCount)
       AND (:title IS NULL OR LOWER(r.title) LIKE LOWER(CONCAT('%', :title, '%')))
       AND (:creationAfterDate IS NULL OR r.creationTime >= :creationAfterDate)

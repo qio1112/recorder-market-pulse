@@ -150,6 +150,7 @@ public class RecordService {
         List<Path> pathsToBeDeleted = record.getRecFiles().stream().map(RecFile::getPath).toList();
         scheduleAlertService.cancelAlertsForRecord(record.getId());
         recordRepository.delete(record);
+        logger.info("Deleted record id {}, title: {}", record.getId(), record.getTitle());
         deleteRecFilesByPaths(pathsToBeDeleted);
     }
 
@@ -179,9 +180,9 @@ public class RecordService {
                                                      Boolean isPublic, Boolean isCreatedByUserOnly,
                                                       Integer pageSize, Integer pageNum, String sortBy, User user) {
 
-        if (labels == null) {
-            labels = new ArrayList<>();
-        }
+//        if (labels == null) {
+//            labels = new ArrayList<>();
+//        }
         Pageable page = PageRequest.of(pageNum, pageSize, parseSortByForRecords(sortBy));
         ZonedDateTime creationAfterDateTime = creationAfterDate == null ? null : dateTimeUtils.getZonedDateTimeFromString(dateTimeUtils.convertLocalDateToString(creationAfterDate), true);
         ZonedDateTime creationBeforeDateTime = creationBeforeDate == null ? null : dateTimeUtils.getZonedDateTimeFromString(dateTimeUtils.convertLocalDateToString(creationBeforeDate), false);
