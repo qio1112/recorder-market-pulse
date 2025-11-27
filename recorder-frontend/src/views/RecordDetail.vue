@@ -32,6 +32,10 @@
         <h2>Author</h2>
         <p class="muted">{{ record.createdBy }}</p>
       </div>
+      <div>
+        <h2>Public</h2>
+        <p class="muted">{{ record.public }}</p>
+      </div>
     </section>
 
     <section class="alert" v-if="alertInfo">
@@ -61,7 +65,10 @@
       </div>
     </section>
     <div class="actions">
-      <base-button mode="primary" @click="goEdit">Edit Record</base-button>
+      <base-button mode="primary" @click="editRecord">Edit Record</base-button>
+      <base-button class="danger" mode="outline" @click="handleDeleteClick">
+        {{ confirmDelete ? 'Click again to confirm delete' : 'Delete Record' }}
+      </base-button>
     </div>
     <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
   </section>
@@ -70,7 +77,7 @@
 </template>
 
 <script>
-import { getRecordDetail, getRecFile } from '../api/RecordService.js'
+import { getRecordDetail, getRecFile, deleteRecord } from '../api/RecordService.js'
 
 export default {
   name: 'RecordDetailView',
@@ -86,7 +93,8 @@ export default {
       isLoading: false,
       imageFiles: [],
       otherFiles: [],
-      errorMessage: ''
+      errorMessage: '',
+      confirmDelete: false
     }
   },
   computed: {
@@ -123,10 +131,26 @@ export default {
       await this.loadFiles();
       this.isLoading = false;
     },
-    goEdit() {
+    editRecord() {
       if (this.record?.id) {
         this.$router.push(`/edit-record/${this.record.id}`);
       }
+    },
+    async handleDeleteClick() {
+      if (!this.record?.id) return;
+      this.errorMessage = '';
+      if (!this.confirmDelete) {
+        this.confirmDelete = true;
+        return;
+      }
+      const result = await deleteRecord(this.record.id);
+      if (result) {
+        alert(`Record "${this.record.title}" has been deleted.`);
+        this.$router.replace('/records');
+      } else {
+        this.errorMessage = 'Failed to delete record. Please try again.';
+      }
+      this.confirmDelete = false;
     },
     async loadFiles() {
       this.cleanupObjectUrls();
@@ -244,6 +268,30 @@ p {
 
 .muted {
   color: #52606d;
+}
+
+.error {
+  color: #d64045;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+:deep(button.danger) {
+  margin-left: auto;
+  border-color: #d64045;
+  color: #d64045;
+}
+
+:deep(button.danger:hover),
+:deep(button.danger:active) {
+  background: #d64045;
+  color: #fff;
 }
 
 .file-list {

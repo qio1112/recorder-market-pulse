@@ -10,7 +10,6 @@
       <button type="button" @click="changePage(-1)" :disabled="currentPage === 0">Prev</button>
       <span>
         Page {{ currentPage + 1 }} of {{ totalPages || 1 }}
-        <span class="total">({{ totalElements }} items)</span>
       </span>
       <button type="button" @click="changePage(1)" :disabled="!hasNext">Next</button>
     </div>
@@ -35,7 +34,6 @@ export default {
       records: [],
       currentPage: 0,
       totalPages: 0,
-      totalElements: 0,
       pageSize: 10,
       hasNext: false,
       isLoading: false
@@ -63,12 +61,11 @@ export default {
       this.pageSize = request.pageSize;
       const data = await getRecords(request);
       this.records = data?.content || [];
-      const pageInfo = data?.pageable || {};
-      this.currentPage = pageInfo.pageNumber ?? 0;
-      this.totalPages = data?.totalPages ?? 0;
-      this.totalElements = data?.totalElements ?? 0;
-      const responsePageSize = pageInfo.pageSize ?? request.pageSize ?? this.records.length;
-      this.hasNext = data?.last === true ? false : data?.last === false ? true : this.records.length === responsePageSize;
+      const pageInfo = data?.page || {};
+      this.currentPage = pageInfo.number ?? 0;
+      this.totalPages = pageInfo.totalPages ?? 0;
+      // const responsePageSize = pageInfo.size ?? request.pageSize ?? this.records.length;
+      this.hasNext = (this.currentPage + 1) !== this.totalPages;
       this.isLoading = false;
     },
     async changePage(delta) {

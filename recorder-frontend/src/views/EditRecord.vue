@@ -14,7 +14,7 @@
 </template>
 
 <script>
-import { getRecordDetail, editRecord } from '../api/RecordService.js'
+import { getRecordDetail, editRecord, EditRecordRequest } from '../api/RecordService.js'
 import RecordEditForm from '../components/records/RecordEditForm.vue'
 
 export default {
@@ -34,11 +34,16 @@ export default {
   },
   async created() {
     this.record = await getRecordDetail(this.recordID);
+    console.log(this.record);
   },
   methods: {
     async handleSubmit(formData) {
       this.errorMessage = '';
-      const response = await editRecord({ ...formData, id: this.recordID });
+      const editRecordRequest = new EditRecordRequest({
+        ...formData,
+        id: this.recordID
+      });
+      const response = await editRecord(editRecordRequest);
       if (response?.id) {
         this.$router.replace(`/records/${response.id}`);
       } else {

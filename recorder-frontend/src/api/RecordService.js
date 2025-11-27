@@ -31,6 +31,17 @@ export async function getRecFile(fileID) {
   }
 }
 
+export async function deleteRecord(recordID) {
+  try {
+    const response = await http.get(`/records/delete-record/${recordID}`);
+    return response.data;
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+}
+
+
 export async function addNewRecord(addRecordRequest) {
   try {
     const jsonBody = addRecordRequest?.toApi ? addRecordRequest.toApi() : addRecordRequest;
@@ -83,9 +94,8 @@ export class ListRecordRequest {
     creationBeforeDate = null,
     modifiedAfterDate = null,
     modifiedBeforeDate = null, 
-    isPublic = true,
     isCreatedByUserOnly = false,
-    pageSize = 20,
+    pageSize = 10,
     page = 0,
     sortBy = "creationTime"
   } = {}) {
@@ -95,7 +105,6 @@ export class ListRecordRequest {
     this.creationBeforeDate = creationBeforeDate;
     this.modifiedAfterDate = modifiedAfterDate;
     this.modifiedBeforeDate = modifiedBeforeDate;
-    this.isPublic = isPublic;
     this.isCreatedByUserOnly = isCreatedByUserOnly;
     this.pageSize = pageSize;
     this.page = page;
@@ -111,7 +120,7 @@ export class ListRecordRequest {
       creationBeforeDate: this.creationBeforeDate,
       modifiedAfterDate: this.modifiedAfterDate,
       modifiedBeforeDate: this.modifiedBeforeDate,
-      isPublic: this.isPublic,
+      public: null,
       isCreatedByUserOnly: this.isCreatedByUserOnly,
       pageSize: this.pageSize,
       page: this.page,
@@ -149,7 +158,7 @@ export class AddRecordRequest {
       title: this.title,
       labels: this.labels,
       content: this.content,
-      isPublic: this.isPublic,
+      public: this.isPublic,
       alertType: this.alertType,
       alertTime: this.alertTime,
       recurringAlertWeekDays: this.recurringAlertWeekDays
@@ -192,7 +201,7 @@ export class EditRecordRequest {
       title: this.title,
       labels: this.labels,
       content: this.content,
-      isPublic: this.isPublic,
+      public: this.isPublic,
       alertType: this.alertType,
       alertTime: this.alertTime,
       cancelAlert: this.cancelAlert,

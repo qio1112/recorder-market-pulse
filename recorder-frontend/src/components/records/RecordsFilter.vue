@@ -26,28 +26,24 @@
 
     <div class="field grid dates-grid">
       <div>
-        <label for="creationAfter">Created after</label>
+        <label for="creationAfter">Created after </label>
         <input id="creationAfter" v-model="form.creationAfterDate" type="date" />
       </div>
       <div>
-        <label for="creationBefore">Created before</label>
+        <label for="creationBefore">Created before </label>
         <input id="creationBefore" v-model="form.creationBeforeDate" type="date" />
       </div>
       <div>
-        <label for="modifiedAfter">Modified after</label>
+        <label for="modifiedAfter">Modified after </label>
         <input id="modifiedAfter" v-model="form.modifiedAfterDate" type="date" />
       </div>
       <div>
-        <label for="modifiedBefore">Modified before</label>
+        <label for="modifiedBefore">Modified before </label>
         <input id="modifiedBefore" v-model="form.modifiedBeforeDate" type="date" />
       </div>
     </div>
 
     <div class="field check-row">
-      <label>
-        <input type="checkbox" v-model="form.isPublic" />
-        Public
-      </label>
       <label>
         <input type="checkbox" v-model="form.isCreatedByUserOnly" />
         Created by me only
@@ -109,7 +105,6 @@ export default {
         creationBeforeDate: request.creationBeforeDate,
         modifiedAfterDate: request.modifiedAfterDate,
         modifiedBeforeDate: request.modifiedBeforeDate,
-        isPublic: request.isPublic,
         isCreatedByUserOnly: request.isCreatedByUserOnly,
         sortBy: request.sortBy
       };
@@ -163,7 +158,7 @@ export default {
 label {
   font-weight: 600;
   color: #1f2933;
-  font-size: 0.95rem;
+  font-size: 0.75rem;
 }
 
 input,
@@ -171,7 +166,7 @@ select {
   padding: 0.55rem 0.65rem;
   border-radius: 7px;
   border: 1px solid #cfd7e2;
-  font-size: 0.95rem;
+  font-size: 0.75rem;
 }
 
 .grid {
@@ -201,7 +196,7 @@ select {
   border: 1px solid #cfd7e2;
   background: #f7fafc;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
 }
 
 .labels-list {
@@ -219,14 +214,14 @@ select {
   background: #e5f3ff;
   color: #0f4c81;
   border: 1px solid #cde7ff;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
 }
 
 .chip-remove {
   border: none;
   background: transparent;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   line-height: 1;
 }
 
@@ -241,7 +236,7 @@ select {
   border-radius: 7px;
   cursor: pointer;
   border: 1px solid transparent;
-  font-size: 0.95rem;
+  font-size: 0.75rem;
 }
 
 .primary {

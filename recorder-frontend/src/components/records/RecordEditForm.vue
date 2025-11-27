@@ -33,6 +33,10 @@
       <label><input type="checkbox" v-model="form.isPublic" /> Public</label>
     </div>
 
+    <div class="field" v-if="mode === 'edit'">
+      <label><input type="checkbox" v-model="form.cancelAlert" /> Cancel Alert</label>
+    </div>
+
     <div class="field">
       <label>Alert Type</label>
       <select v-model="form.alertType">
@@ -113,7 +117,8 @@ export default {
         recurringAlertWeekDays: this.initialRecord.alertSchedule?.weekdays || null,
         images: [],
         files: [],
-        removeFileIDs: []
+        removeFileIDs: [],
+        cancelAlert: this.initialRecord.cancelAlert ?? false
       },
       newLabel: ''
     }
@@ -166,7 +171,7 @@ export default {
 
 label {
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
 
 input,
@@ -175,7 +180,7 @@ select {
   padding: 0.55rem 0.65rem;
   border: 1px solid #cfd7e2;
   border-radius: 7px;
-  font-size: 0.95rem;
+  font-size: 0.8rem;
 }
 
 .checkbox {
@@ -195,7 +200,7 @@ select {
   border: 1px solid #cfd7e2;
   background: #f7fafc;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
 }
 
 .labels-list {
@@ -213,14 +218,14 @@ select {
   background: #e5f3ff;
   color: #0f4c81;
   border: 1px solid #cde7ff;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
 .chip-remove {
   border: none;
   background: transparent;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.6rem;
   line-height: 1;
 }
 
