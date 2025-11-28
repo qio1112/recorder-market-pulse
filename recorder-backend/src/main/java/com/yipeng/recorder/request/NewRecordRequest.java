@@ -5,7 +5,9 @@ import com.yipeng.recorder.utils.AlertType;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class NewRecordRequest {
 
@@ -19,6 +21,7 @@ public class NewRecordRequest {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
     private ZonedDateTime alertTime;
     private String recurringAlertWeekDays;
+    private Map<String, String> metadata = new HashMap<>();
 
     public String getTitle() {
         return title;
@@ -74,5 +77,13 @@ public class NewRecordRequest {
 
     public void setRecurringAlertWeekDays(String recurringAlertWeekDays) {
         this.recurringAlertWeekDays = recurringAlertWeekDays;
+    }
+
+    public Map<String, String> getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(Map<String, String> metadata) {
+        this.metadata = metadata;
     }
 }

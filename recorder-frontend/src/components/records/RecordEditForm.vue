@@ -66,6 +66,28 @@
       <input type="file" multiple @change="onFilesChange" />
     </div>
 
+    <div class="field">
+      <label>Metadata</label>
+      <div class="meta-rows">
+        <div class="meta-row" v-for="(item, index) in metadataRows" :key="index">
+          <input
+            v-model="item.key"
+            type="text"
+            placeholder="Key"
+            class="meta-input"
+          />
+          <input
+            v-model="item.value"
+            type="text"
+            placeholder="Value"
+            class="meta-input"
+          />
+          <button type="button" class="meta-remove" @click="removeMetadata(index)">×</button>
+        </div>
+      </div>
+      <button type="button" class="add-btn" @click="addMetadata">Add metadata</button>
+    </div>
+
     <div class="field" v-if="existingFiles.length">
       <label>Remove existing files</label>
       <div class="checkbox-list">
@@ -120,7 +142,10 @@ export default {
         removeFileIDs: [],
         cancelAlert: this.initialRecord.cancelAlert ?? false
       },
-      newLabel: ''
+      newLabel: '',
+      metadataRows: this.initialRecord.metadata
+        ? Object.entries(this.initialRecord.metadata).map(([key, value]) => ({ key, value }))
+        : []
     }
   },
   computed: {
@@ -144,13 +169,25 @@ export default {
     removeLabel(label) {
       this.form.labels = this.form.labels.filter((l) => l !== label);
     },
+    addMetadata() {
+      this.metadataRows.push({ key: '', value: '' });
+    },
+    removeMetadata(index) {
+      this.metadataRows.splice(index, 1);
+    },
     cleanFileName(name) {
       if (!name) return '';
       const parts = String(name).split('__');
       return parts.length > 1 ? parts.slice(1).join('__') : name;
     },
     submit() {
-      this.$emit('submit', { ...this.form });
+      const metadata = {};
+      this.metadataRows.forEach(({ key, value }) => {
+        if (key) {
+          metadata[key] = value ?? '';
+        }
+      });
+      this.$emit('submit', { ...this.form, metadata });
     }
   }
 }
@@ -227,6 +264,33 @@ select {
   cursor: pointer;
   font-size: 0.6rem;
   line-height: 1;
+}
+
+.meta-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.meta-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.meta-input {
+  padding: 0.45rem 0.6rem;
+}
+
+.meta-remove {
+  border: 1px solid #cfd7e2;
+  background: #fdecea;
+  color: #c0392b;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
 }
 
 .checkbox-list {

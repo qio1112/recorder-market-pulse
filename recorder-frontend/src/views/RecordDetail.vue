@@ -64,6 +64,15 @@
         </div>
       </div>
     </section>
+    <section class="metadata" v-if="metadataEntries.length">
+      <h2>Metadata</h2>
+      <div class="metadata-table">
+        <div class="metadata-row" v-for="item in metadataEntries" :key="item.key">
+          <span class="meta-key">{{ item.key }}</span>
+          <span class="meta-value">{{ item.value }}</span>
+        </div>
+      </div>
+    </section>
     <div class="actions">
       <base-button mode="primary" @click="editRecord">Edit Record</base-button>
       <base-button class="danger" mode="outline" @click="handleDeleteClick">
@@ -114,6 +123,11 @@ export default {
         return `Recurring alert on ${days}${timeOnly ? ` at ${timeOnly}` : ''}`;
       }
       return null;
+    },
+    metadataEntries() {
+      const meta = this.record?.metadata;
+      if (!meta || typeof meta !== 'object') return [];
+      return Object.entries(meta).map(([key, value]) => ({ key, value }));
     }
   },
   watch: {
@@ -249,6 +263,7 @@ export default {
 
 .content,
 .alert,
+.metadata,
 .files {
   border-top: 1px solid #e5e8ed;
   padding-top: 0.75rem;
@@ -272,6 +287,35 @@ p {
 
 .error {
   color: #d64045;
+}
+
+.metadata-table {
+  border: 1px solid #e5e8ed;
+  border-radius: 8px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.metadata-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid #e5e8ed;
+}
+
+.metadata-row:last-child {
+  border-bottom: none;
+}
+
+.meta-key {
+  font-weight: 700;
+  color: #102a43;
+}
+
+.meta-value {
+  color: #52606d;
+  word-break: break-word;
 }
 
 .actions {

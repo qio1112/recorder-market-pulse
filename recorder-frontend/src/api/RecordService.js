@@ -143,7 +143,8 @@ export class AddRecordRequest {
     alertTime = null,
     recurringAlertWeekDays = null,
     images = [],
-    files = []
+    files = [],
+    metadata = {}
   } = {}) {
     this.title = title;
     this.labels = labels;
@@ -154,6 +155,7 @@ export class AddRecordRequest {
     this.recurringAlertWeekDays = recurringAlertWeekDays; // e.g. "MONDAY,TUESDAY,SATURDAY"
     this.images = images;
     this.files = files;
+    this.metadata = metadata;
   }
 
   toApi() {
@@ -164,7 +166,8 @@ export class AddRecordRequest {
       public: this.isPublic,
       alertType: this.alertType,
       alertTime: this.alertTime,
-      recurringAlertWeekDays: this.recurringAlertWeekDays
+      recurringAlertWeekDays: this.recurringAlertWeekDays,
+      metadata: this.metadata
     };
   }
 }
@@ -182,7 +185,8 @@ export class EditRecordRequest {
     recurringAlertWeekDays = null,
     removeFileIDs = [], // list of recFile IDs (integer)
     images = [],
-    files = []
+    files = [],
+    metadata = {}
   } = {}) {
     this.id = id;
     this.title = title;
@@ -196,6 +200,7 @@ export class EditRecordRequest {
     this.removeFileIDs = removeFileIDs,
     this.images = images;
     this.files = files;
+    this.metadata = metadata;
   }
 
   toApi() {
@@ -209,7 +214,8 @@ export class EditRecordRequest {
       alertTime: this.alertTime,
       cancelAlert: this.cancelAlert,
       recurringAlertWeekDays: this.recurringAlertWeekDays,
-      removeFileIDs: this.removeFileIDs
+      removeFileIDs: this.removeFileIDs,
+      metadata: this.metadata
     };
   }
 }

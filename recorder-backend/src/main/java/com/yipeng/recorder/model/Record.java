@@ -51,6 +51,10 @@ public class Record {
     @OneToOne(mappedBy = "record", cascade = CascadeType.ALL, orphanRemoval = true)
     private AlertSchedule alertSchedule;
 
+    @Convert(converter = StringMapJsonConverter.class)
+    @Column(name = "metadata", columnDefinition = "TEXT")
+    private Map<String, String> metadata = new HashMap<>();
+
     public Record() {
         this.creationTime = ZonedDateTime.now();
         this.lastModifiedTime = this.creationTime;
@@ -182,5 +186,13 @@ public class Record {
 
     public void setAlertSchedule(AlertSchedule alertSchedules) {
         this.alertSchedule = alertSchedules;
+    }
+
+    public Map<String, String> getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(Map<String, String> metadata) {
+        this.metadata = metadata;
     }
 }

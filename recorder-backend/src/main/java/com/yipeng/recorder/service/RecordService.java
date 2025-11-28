@@ -67,7 +67,8 @@ public class RecordService {
     }
 
     @Transactional
-    public Record createRecord(Record record, List<RecFile> images, List<RecFile> regularFiles, List<String> labelNames, User user, AlertSchedule alertSchedule, boolean isPublic) {
+    public Record createRecord(Record record, List<RecFile> images, List<RecFile> regularFiles, List<String> labelNames,
+                               User user, AlertSchedule alertSchedule, boolean isPublic, Map<String, String> metadata) {
         List<Label> labels = createLabelsIfNotExistThenGet(labelNames, user, true);
         record.setLabels(labels);
         List<RecFile> allRecFiles = new ArrayList<>(images);
@@ -76,6 +77,7 @@ public class RecordService {
         record.setRecFiles(allRecFiles);
         record.setLastModifiedTime(ZonedDateTime.now());
         record.setAlertSchedule(alertSchedule);
+        record.setMetadata(metadata);
         Record newRecord = recordRepository.save(record);
         scheduleAlertService.scheduleAlert(alertSchedule);
         logger.info("Created new record. ID: {}, title: {}, createdBy: {}, isPublic: {}", newRecord.getId(), newRecord.getTitle(), newRecord.getCreatedBy().getUsername(), isPublic);
@@ -88,7 +90,7 @@ public class RecordService {
 
     @Transactional
     public Record updateRecord(Record record, List<Long> deleteFileIds, List<RecFile> images, List<RecFile> regularFiles, List<String> labelNames, User user,
-                               AlertSchedule alertSchedule, boolean isCancelAlert, boolean isPublic) {
+                               AlertSchedule alertSchedule, boolean isCancelAlert) {
         // create and update labels
         List<Label> labels = createLabelsIfNotExistThenGet(labelNames, user, false);
         record.setLabels(labels);
@@ -125,7 +127,6 @@ public class RecordService {
         // add new files to record
         record.getRecFiles().addAll(allRecFiles);
         record.setLastModifiedTime(ZonedDateTime.now());
-        record.setPublic(isPublic);
         Record savedRecord = recordRepository.save(record);
 
         // Handle scheduling changes

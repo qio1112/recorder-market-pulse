@@ -85,7 +85,8 @@ public class RecordController {
         List<RecFile> regularFiles = handleMultipartFiles(files, RecFileType.REGULAR_FILE.name(), regularFileSizeLimit, user);
 
         // Use the service to handle the creation, including labels and recFiles
-        newRecord = recordService.createRecord(newRecord, imageFiles, regularFiles, newRecordRequest.getLabels(), user, alertSchedule, newRecordRequest.isPublic());
+        newRecord = recordService.createRecord(newRecord, imageFiles, regularFiles, newRecordRequest.getLabels(), user, alertSchedule,
+                newRecordRequest.isPublic(), newRecordRequest.getMetadata());
         return ResponseEntity.status(HttpStatus.CREATED).body(newRecord);
     }
 
@@ -154,6 +155,7 @@ public class RecordController {
         record.setTitle(updateRecordRequest.getTitle());
         record.setContent(updateRecordRequest.getContent());
         record.setPublic(updateRecordRequest.isPublic());
+        record.setMetadata(updateRecordRequest.getMetadata());
 
         AlertSchedule alertSchedule = getAlertSchedule(updateRecordRequest, record);
 
@@ -169,7 +171,7 @@ public class RecordController {
 
         // update and save record, labels, recFiles
         record = recordService.updateRecord(record, deleteFileIds, imageFiles, regularFiles, updateRecordRequest.getLabels(), user, alertSchedule,
-                updateRecordRequest.isCancelAlert(), updateRecordRequest.isPublic());
+                updateRecordRequest.isCancelAlert());
 
         return ResponseEntity.ok().body(record);
     }
