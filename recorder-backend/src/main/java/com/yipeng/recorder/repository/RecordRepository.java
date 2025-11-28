@@ -57,6 +57,7 @@ public interface RecordRepository extends JpaRepository<Record, Long> {
     LEFT JOIN r.createdBy
     LEFT JOIN r.labels
     WHERE (:labels IS NULL OR (SELECT COUNT(label) FROM r.labels label WHERE label.labelName IN :labels) = :labelCount)
+      AND (:excludedLabels IS NULL OR (SELECT COUNT(l2) FROM r.labels l2 WHERE l2.labelName IN :excludedLabels) = 0)
       AND (:title IS NULL OR LOWER(r.title) LIKE LOWER(CONCAT('%', :title, '%')))
       AND (:creationAfterDate IS NULL OR r.creationTime >= :creationAfterDate)
       AND (:creationBeforeDate IS NULL OR r.creationTime <= :creationBeforeDate)
@@ -69,6 +70,7 @@ public interface RecordRepository extends JpaRepository<Record, Long> {
     Page<Record> filterRecords(
             @Param("labels") List<String> labels,
             @Param("labelCount") Long labelCount,
+            @Param("excludedLabels") List<String> excludedLabels,
             @Param("title") String title,
             @Param("creationAfterDate") ZonedDateTime creationAfterDate,
             @Param("creationBeforeDate") ZonedDateTime creationBeforeDate,

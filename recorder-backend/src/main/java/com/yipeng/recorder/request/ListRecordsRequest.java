@@ -6,6 +6,7 @@ import java.util.List;
 public class ListRecordsRequest {
 
     private List<String> labels;
+    private List<String> excludeLabels;
     private String titleContains;
     private LocalDate creationAfterDate;
     private LocalDate creationBeforeDate;
@@ -23,6 +24,14 @@ public class ListRecordsRequest {
 
     public void setLabels(List<String> labels) {
         this.labels = labels;
+    }
+
+    public List<String> getExcludeLabels() {
+        return excludeLabels;
+    }
+
+    public void setExcludeLabels(List<String> excludeLabels) {
+        this.excludeLabels = excludeLabels;
     }
 
     public String getTitleContains() {

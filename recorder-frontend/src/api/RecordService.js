@@ -90,6 +90,7 @@ export class ListRecordRequest {
   constructor({
     titleContains = "",
     labels = [],
+    excludeLabels = [],
     creationAfterDate = null, // yyyy-MM-dd
     creationBeforeDate = null,
     modifiedAfterDate = null,
@@ -101,6 +102,7 @@ export class ListRecordRequest {
   } = {}) {
     this.titleContains = titleContains;
     this.labels = labels;
+    this.excludeLabels = excludeLabels;
     this.creationAfterDate = creationAfterDate;
     this.creationBeforeDate = creationBeforeDate;
     this.modifiedAfterDate = modifiedAfterDate;
@@ -116,6 +118,7 @@ export class ListRecordRequest {
     return {
       titleContains: this.titleContains,
       labels: this.labels,
+      excludeLabels: this.excludeLabels,
       creationAfterDate: this.creationAfterDate,
       creationBeforeDate: this.creationBeforeDate,
       modifiedAfterDate: this.modifiedAfterDate,

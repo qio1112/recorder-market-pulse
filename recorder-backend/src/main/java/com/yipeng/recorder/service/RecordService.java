@@ -174,22 +174,38 @@ public class RecordService {
         return resultLabels;
     }
 
-    public Page<Record> listRecordsCoreDataWithFilter(List<String> labels, String title,
+    public Page<Record> listRecordsCoreDataWithFilter(List<String> labels, List<String> excludeLabels,
+                                                      String title,
                                                      LocalDate creationAfterDate, LocalDate creationBeforeDate,
                                                      LocalDate modifiedAfterDate, LocalDate modifiedBeforeDate,
                                                      Boolean isPublic, Boolean isCreatedByUserOnly,
                                                       Integer pageSize, Integer pageNum, String sortBy, User user) {
 
-//        if (labels == null) {
-//            labels = new ArrayList<>();
-//        }
+        if (labels != null && labels.isEmpty()) {
+            labels = null;
+        }
+        if (excludeLabels != null && excludeLabels.isEmpty()) {
+            excludeLabels = null;
+        }
+        if (pageSize == null) {
+            pageSize = 10;
+        }
+        if (pageNum == null) {
+            pageNum = 0;
+        }
+        if (isCreatedByUserOnly == null) {
+            isCreatedByUserOnly = false;
+        }
         Pageable page = PageRequest.of(pageNum, pageSize, parseSortByForRecords(sortBy));
         ZonedDateTime creationAfterDateTime = creationAfterDate == null ? null : dateTimeUtils.getZonedDateTimeFromString(dateTimeUtils.convertLocalDateToString(creationAfterDate), true);
         ZonedDateTime creationBeforeDateTime = creationBeforeDate == null ? null : dateTimeUtils.getZonedDateTimeFromString(dateTimeUtils.convertLocalDateToString(creationBeforeDate), false);
         ZonedDateTime modifiedAfterDateTime = modifiedAfterDate == null ? null : dateTimeUtils.getZonedDateTimeFromString(dateTimeUtils.convertLocalDateToString(modifiedAfterDate), true);
         ZonedDateTime modifiedBeforeDateTime = modifiedBeforeDate == null ? null : dateTimeUtils.getZonedDateTimeFromString(dateTimeUtils.convertLocalDateToString(modifiedBeforeDate), false);
 
-        return recordRepository.filterRecords(labels, (long)labels.size(), title,
+        return recordRepository.filterRecords(labels,
+                labels == null ? 0 : (long)labels.size(),
+                excludeLabels,
+                title,
                 creationAfterDateTime, creationBeforeDateTime, modifiedAfterDateTime, modifiedBeforeDateTime,
                 isPublic, isCreatedByUserOnly,
                 user.getId(), user.isAdmin(), page);

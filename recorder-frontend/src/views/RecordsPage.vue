@@ -36,9 +36,16 @@ export default {
         return raw.map((l) => l.trim()).filter(Boolean);
       };
 
+      const toExcludeLabels = () => {
+        if (q.excludeLabels === undefined) return [...base.excludeLabels];
+        const raw = Array.isArray(q.excludeLabels) ? q.excludeLabels : String(q.excludeLabels).split(',');
+        return raw.map((l) => l.trim()).filter(Boolean);
+      }
+
       return {
         titleContains: q.titleContains ?? base.titleContains,
         labels: toLabels(),
+        excludeLabels: toExcludeLabels(),
         creationAfterDate: q.creationAfterDate ?? base.creationAfterDate,
         creationBeforeDate: q.creationBeforeDate ?? base.creationBeforeDate,
         modifiedAfterDate: q.modifiedAfterDate ?? base.modifiedAfterDate,
@@ -57,6 +64,7 @@ export default {
       return {
         titleContains: request.titleContains || undefined,
         labels: request.labels && request.labels.length ? request.labels : undefined,
+        excludeLabels: request.excludeLabels && request.excludeLabels.length ? request.excludeLabels : undefined,
         creationAfterDate: request.creationAfterDate || undefined,
         creationBeforeDate: request.creationBeforeDate || undefined,
         modifiedAfterDate: request.modifiedAfterDate || undefined,

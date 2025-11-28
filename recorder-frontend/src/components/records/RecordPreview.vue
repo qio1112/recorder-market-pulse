@@ -39,7 +39,7 @@ export default {
   },
   computed: {
     labelNames() {
-      return (this.record.labels || []).slice(0, 3).map((l) => l.labelName);
+      return (this.record.labels || []).slice(0, 6).map((l) => l.labelName);
     }
   },
   watch: {

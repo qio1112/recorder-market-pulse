@@ -224,7 +224,9 @@ public class RecordController {
         if (user == null) {
             throw new ForbiddenException();
         }
-        Page<Record> recordPage = recordService.listRecordsCoreDataWithFilter(listRecordsRequest.getLabels(),
+        Page<Record> recordPage = recordService.listRecordsCoreDataWithFilter(
+                listRecordsRequest.getLabels(),
+                listRecordsRequest.getExcludeLabels(),
                 listRecordsRequest.getTitleContains(),
                 listRecordsRequest.getCreationAfterDate(),listRecordsRequest.getCreationBeforeDate(),
                 listRecordsRequest.getModifiedAfterDate(), listRecordsRequest.getModifiedBeforeDate(),

@@ -24,6 +24,25 @@
       </div>
     </div>
 
+    <div class="field">
+      <label>Exclude Labels</label>
+      <div class="labels-row">
+        <input
+          v-model.trim="newExcludeLabel"
+          type="text"
+          placeholder="Add label to be excluded"
+          @keyup.enter.prevent="addExcludeLabel"
+        />
+        <button type="button" class="add-btn" @click="addExcludeLabel">Add</button>
+      </div>
+      <div class="labels-list" v-if="form.excludeLabels.length">
+        <span v-for="excludeLabel in form.excludeLabels" :key="excludeLabel" class="chip">
+          {{ excludeLabel }}
+          <button type="button" class="chip-remove" @click="removeExcludeLabel(excludeLabel)">×</button>
+        </span>
+      </div>
+    </div>
+
     <div class="field grid dates-grid">
       <div>
         <label for="creationAfter">Created after </label>
@@ -84,7 +103,8 @@ export default {
     const defaults = new ListRecordRequest(this.initialFilters || {});
     return {
       form: this.mapRequestToForm(defaults),
-      newLabel: ''
+      newLabel: '',
+      newExcludeLabel: ''
     }
   },
   watch: {
@@ -101,6 +121,7 @@ export default {
       return {
         titleContains: request.titleContains,
         labels: [...request.labels],
+        excludeLabels: [...request.excludeLabels],
         creationAfterDate: request.creationAfterDate,
         creationBeforeDate: request.creationBeforeDate,
         modifiedAfterDate: request.modifiedAfterDate,
@@ -117,6 +138,15 @@ export default {
     },
     removeLabel(label) {
       this.form.labels = this.form.labels.filter((l) => l !== label);
+    },
+    addExcludeLabel() {
+      const value = this.newExcludeLabel.trim();
+      if (!value || this.form.excludeLabels.includes(value)) return;
+      this.form.excludeLabels.push(value);
+      this.newExcludeLabel = '';
+    },
+    removeExcludeLabel(excludeLabel) {
+      this.form.excludeLabels = this.form.excludeLabels.filter((l) => l !== excludeLabel);
     },
     resetForm() {
       const defaults = new ListRecordRequest();
