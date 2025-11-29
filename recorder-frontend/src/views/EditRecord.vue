@@ -34,7 +34,6 @@ export default {
   },
   async created() {
     this.record = await getRecordDetail(this.recordID);
-    console.log(this.record);
   },
   methods: {
     async handleSubmit(formData) {

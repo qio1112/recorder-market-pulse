@@ -58,7 +58,6 @@ export default {
         ...(this.filters || {}),
         page: this.currentPage
       });
-      console.log(JSON.stringify(request));
       this.pageSize = request.pageSize;
       const data = await getRecords(request);
       this.records = data?.content || [];
