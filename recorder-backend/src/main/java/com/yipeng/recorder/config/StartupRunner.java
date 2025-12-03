@@ -85,16 +85,21 @@ public class StartupRunner implements CommandLineRunner {
 
     private void createDefaultLabels() {
         User adminUser = userRepository.findByUsername(adminUsername).get();
-        if (labelRepository.existsByLabelName("ALERT")) {
-            Label alertLabel = labelRepository.findByLabelName("ALERT").get();
+        List<String> defaultLabels = Arrays.asList("ALERT", "INVESTMENT_REC", "VALID_TRADE", "INVALID_TRADE");
+        defaultLabels.forEach(label -> createDefaultLabel(adminUser, label));
+    }
+
+    private void createDefaultLabel(User adminUser, String labelName) {
+        if (labelRepository.existsByLabelName(labelName)) {
+            Label alertLabel = labelRepository.findByLabelName(labelName).get();
             if (null == alertLabel.getCreatedBy()) {
                 alertLabel.setCreatedBy(adminUser);
                 labelRepository.save(alertLabel);
             }
-            logger.info("Label 'ALERT' already exists");
+            logger.info("Label '{}' already exists", labelName);
             return ;
         }
-        Label alertLabel = new Label("ALERT", adminUser, LabelType.DEFAULT);
+        Label alertLabel = new Label(labelName, adminUser, LabelType.DEFAULT);
         labelRepository.save(alertLabel);
     }
 

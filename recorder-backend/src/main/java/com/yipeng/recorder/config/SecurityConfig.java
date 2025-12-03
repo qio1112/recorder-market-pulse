@@ -43,10 +43,9 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers("/api/auth/**").permitAll()
-                    .requestMatchers("/public/**").permitAll()
-                    .requestMatchers("/admin/**").hasRole("ADMIN")
+                    .requestMatchers("/api/**").authenticated()
                     .requestMatchers("/api/run-script/**").hasRole("ADMIN")
-                    .anyRequest().authenticated()
+                    .anyRequest().permitAll()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));  // Stateless session management (JWT)
 

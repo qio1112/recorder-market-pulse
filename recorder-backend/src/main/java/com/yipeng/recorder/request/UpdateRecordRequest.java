@@ -2,6 +2,7 @@ package com.yipeng.recorder.request;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.yipeng.recorder.utils.AlertType;
+import com.yipeng.recorder.utils.DataUtils;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -113,6 +114,6 @@ public class UpdateRecordRequest {
     }
 
     public void setMetadata(Map<String, String> metadata) {
-        this.metadata = metadata;
+        this.metadata = DataUtils.cleanMapKeysAndValues(metadata);
     }
 }

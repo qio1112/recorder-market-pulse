@@ -1,6 +1,7 @@
 from main.data_source.data_source import get_fear_greed_index_cnn
 from main.tasks.update_stock_data import update_stock_data, update_stock_data_flexible, \
-    get_current_minute_stock_price_json_task, get_stock_price_day_history_json_task, get_fear_greed_index_data
+    get_current_minute_stock_price_json_task, get_stock_price_day_history_json_task, get_fear_greed_index_data, \
+    get_today_is_trade_day
 
 import argparse
 
@@ -96,5 +97,7 @@ if __name__ == "__main__":
         get_stock_price_day_history_json_task(symbols=symbols)
     elif job_name == "get_fear_greed_index_data":
         get_fear_greed_index_data()
+    elif job_name == "get_today_is_trade_day":
+        get_today_is_trade_day()
     else:
         raise ValueError(f"Unknown job name: {job_name}")

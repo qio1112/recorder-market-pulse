@@ -159,7 +159,6 @@ export default {
         labels: [...this.form.labels]
       });
       this.$emit('submit', request);
-      console.log('ListRecordRequest ready:', request);
     }
   }
 }

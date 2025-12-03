@@ -1,10 +1,21 @@
 package com.yipeng.recorder.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yipeng.recorder.exception.ForbiddenException;
+import com.yipeng.recorder.model.StockDailyHistory;
 import com.yipeng.recorder.model.User;
+import com.yipeng.recorder.request.UpdateStockHistoryRequest;
+import com.yipeng.recorder.service.StockDailyHistoryService;
 import com.yipeng.recorder.service.StockDataScriptService;
 import com.yipeng.recorder.service.UserService;
 
+import com.yipeng.recorder.utils.DateTimeUtils;
+import com.yipeng.recorder.utils.StockDailyHistoryResponse;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,22 +23,45 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
-public class StockScriptController {
+public class StockDataController {
 
-    private static final Logger logger = LoggerFactory.getLogger(StockScriptController.class);
+    private static final Logger logger = LoggerFactory.getLogger(StockDataController.class);
 
     private final UserService userService;
     private final StockDataScriptService stockDataScriptService;
+    private final StockDailyHistoryService stockDailyHistoryService;
+    private final DateTimeUtils dateTimeUtils;
 
     @Autowired
-    public StockScriptController(UserService userService,
-                                 StockDataScriptService stockDataScriptService) {
+    public StockDataController(UserService userService,
+                               StockDataScriptService stockDataScriptService,
+                               StockDailyHistoryService stockDailyHistoryService,
+                               DateTimeUtils dateTimeUtils
+                               ) {
         this.userService = userService;
         this.stockDataScriptService = stockDataScriptService;
+        this.stockDailyHistoryService = stockDailyHistoryService;
+        this.dateTimeUtils = dateTimeUtils;
+    }
+
+    @PostMapping("/stock-data/update-daily-history-db")
+    public ResponseEntity<String> updateStockDailyHistory(@RequestBody UpdateStockHistoryRequest body) {
+
+        User user = userService.findUserFromAuthentication();
+        if (user == null || !user.isAdmin()) {
+            throw new ForbiddenException();
+        }
+
+        Map<String, List<StockDailyHistory>> stockHistoryBySymbolFromApi = this.stockDataScriptService.getStockDailyHistoryFromScript(body.getSymbols(), user);
+
+        this.stockDailyHistoryService.updateStockDailyHistoryDatabase(stockHistoryBySymbolFromApi);
+
+        return ResponseEntity.ok().body("Stock daily history data successfully updated for symbols: " + StringUtils.join(stockHistoryBySymbolFromApi.keySet(), ","));
     }
 
     @PostMapping("/run-script/update_stock_data")
@@ -44,7 +78,11 @@ public class StockScriptController {
         }
 
         logger.info("Script update_stock_data execution completed successfully.");
-        return ResponseEntity.ok("Script update_stock_data executed successfully.\nOutput:\n" + output);
+        String prefix = "result data:";
+        if (output.contains(prefix)) {
+            output = output.substring(output.indexOf(prefix) + prefix.length()).trim();
+        }
+        return ResponseEntity.ok().body(output);
     }
 
     @GetMapping(value="/run-script/update_stock_data/help")
@@ -57,7 +95,7 @@ public class StockScriptController {
                JSON Arguments for Stock and Option Data Task
                You can send the following arguments:
 
-               
+              \s
                "jobName": string or null,
                "symbolPath": string or null,
                "optionSymbolPath": string or null,
@@ -66,7 +104,7 @@ public class StockScriptController {
                "taskLabel": string,
                "maxWorkers": integer,
                "update_most_recent_date": boolean
-               
+              \s
 
                Field Details:
 
@@ -125,6 +163,9 @@ public class StockScriptController {
                - For jobName = "get_stock_price_day_history_json":
                      Returns historical daily prices in JSON.
                      Requires 'symbols'.
+              
+               - For jobName = "get_today_is_trade_day":
+                     Returns boolean value about whether current day is a trade date
 
                - For jobName = "get_fear_greed_index_data":
                      Returns CNN Fear & Greed Index data.

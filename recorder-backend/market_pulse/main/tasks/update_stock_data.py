@@ -105,4 +105,10 @@ def get_stock_price_day_history_json_task(symbols: list[str]):
 def get_fear_greed_index_data():
     logger = setup_logging("get_fear_greed_index_data")
     data = get_fear_greed_index_cnn(update_file=True)
-    logger.info(f"Fear & Greed Index data: {data}")
+    logger.info(f"Fear & Greed Index result data: {data}")
+
+
+def get_today_is_trade_day():
+    logger = setup_logging("get_today_is_trade_day")
+    today_is_trade_day = is_today_trade_day_yf()
+    logger.info("result data: {}"), today_is_trade_day

@@ -61,10 +61,10 @@ export default {
       this.pageSize = request.pageSize;
       const data = await getRecords(request);
       this.records = data?.content || [];
+      // console.log(this.records);
       const pageInfo = data?.page || {};
       this.currentPage = pageInfo.number ?? 0;
       this.totalPages = pageInfo.totalPages ?? 0;
-      // const responsePageSize = pageInfo.size ?? request.pageSize ?? this.records.length;
       this.hasNext = (this.currentPage + 1) !== this.totalPages;
       this.isLoading = false;
     },

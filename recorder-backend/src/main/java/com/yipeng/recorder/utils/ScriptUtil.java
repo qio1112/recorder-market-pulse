@@ -71,7 +71,7 @@ public class ScriptUtil {
             exitCode = process.waitFor();
             result.setExitCode(exitCode);
             result.setOutput(output.toString());
-            logger.info("Ran script: {} with exit code: {}, output: \n{}", scriptName, exitCode, output);
+            logger.info("Ran script: {} with exit code: {}", scriptName, exitCode);
         } catch (IOException | InterruptedException e) {
             result.setExitCode(1);
             result.setOutput(e.getMessage());

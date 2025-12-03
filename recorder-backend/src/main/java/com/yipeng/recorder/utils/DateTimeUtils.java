@@ -64,6 +64,10 @@ public class DateTimeUtils {
         return localDate.format(DATE_FORMATTER);
     }
 
+    public LocalDate getLocalDateFromString(String dateString) {
+        return LocalDate.parse(dateString);
+    }
+
     public ZonedDateTime getZonedDateTimeFromString(String dateString, boolean startOfDay) {
         if (!isValidDateString(dateString)) {
             throw new IllegalArgumentException("Invalid date string: " + dateString);
