@@ -2,14 +2,14 @@ package com.yipeng.recorder.request;
 
 import java.util.List;
 
-public class UpdateStockHistoryRequest {
+public class StockHistoryRequest {
 
     List<String> symbols;
 
-    public UpdateStockHistoryRequest() {
+    public StockHistoryRequest() {
     }
 
-    public UpdateStockHistoryRequest(List<String> symbols) {
+    public StockHistoryRequest(List<String> symbols) {
         this.symbols = symbols;
     }
 

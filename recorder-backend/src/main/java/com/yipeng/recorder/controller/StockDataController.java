@@ -1,20 +1,16 @@
 package com.yipeng.recorder.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yipeng.recorder.exception.ForbiddenException;
 import com.yipeng.recorder.model.StockDailyHistory;
 import com.yipeng.recorder.model.User;
-import com.yipeng.recorder.request.UpdateStockHistoryRequest;
+import com.yipeng.recorder.request.StockHistoryRequest;
+import com.yipeng.recorder.response.StockDailyHistoryForSymbolResponse;
+import com.yipeng.recorder.response.StockDailyHistoryFullResponse;
 import com.yipeng.recorder.service.StockDailyHistoryService;
 import com.yipeng.recorder.service.StockDataScriptService;
 import com.yipeng.recorder.service.UserService;
 
 import com.yipeng.recorder.utils.DateTimeUtils;
-import com.yipeng.recorder.utils.StockDailyHistoryResponse;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,7 +20,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
@@ -49,16 +44,31 @@ public class StockDataController {
         this.dateTimeUtils = dateTimeUtils;
     }
 
-    @PostMapping("/stock-data/update-daily-history-db")
-    public ResponseEntity<String> updateStockDailyHistory(@RequestBody UpdateStockHistoryRequest body) {
+    @PostMapping("/stock-data/get-daily-history")
+    public ResponseEntity<StockDailyHistoryFullResponse> getStockDailyHistory(@RequestBody StockHistoryRequest body) {
+        User user = userService.findUserFromAuthentication();
+        if (user == null || !user.isAdmin()) {
+            throw new ForbiddenException();
+        }
+        List<String> symbols = this.stockDataScriptService.formatSymbolList(body.getSymbols());
+        Map<String, List<StockDailyHistory>> rawData = this.stockDailyHistoryService.getHistoryBySymbols(symbols);
+        List<String> invalidSymbols = new ArrayList<>(symbols);
+        invalidSymbols.removeAll(rawData.keySet());
+        List<StockDailyHistoryForSymbolResponse> responseForSymbols = rawData.keySet().stream()
+                .map(symbol -> new StockDailyHistoryForSymbolResponse(rawData.get(symbol), symbol))
+                .toList();
+        StockDailyHistoryFullResponse response = new StockDailyHistoryFullResponse(invalidSymbols, responseForSymbols);
+        return ResponseEntity.ok().body(response);
+    }
 
+    @PostMapping("/stock-data/update-daily-history-db")
+    public ResponseEntity<String> updateStockDailyHistory(@RequestBody StockHistoryRequest body) {
         User user = userService.findUserFromAuthentication();
         if (user == null || !user.isAdmin()) {
             throw new ForbiddenException();
         }
 
         Map<String, List<StockDailyHistory>> stockHistoryBySymbolFromApi = this.stockDataScriptService.getStockDailyHistoryFromScript(body.getSymbols(), user);
-
         this.stockDailyHistoryService.updateStockDailyHistoryDatabase(stockHistoryBySymbolFromApi);
 
         return ResponseEntity.ok().body("Stock daily history data successfully updated for symbols: " + StringUtils.join(stockHistoryBySymbolFromApi.keySet(), ","));

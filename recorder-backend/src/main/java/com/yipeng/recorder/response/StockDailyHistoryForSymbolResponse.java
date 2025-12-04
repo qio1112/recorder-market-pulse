@@ -1,4 +1,4 @@
-package com.yipeng.recorder.utils;
+package com.yipeng.recorder.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.yipeng.recorder.model.StockDailyHistory;
@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-public class StockDailyHistoryResponse {
+public class StockDailyHistoryForSymbolResponse {
 
     @JsonProperty("Symbol")
     private String symbol;
@@ -32,7 +32,7 @@ public class StockDailyHistoryResponse {
     @JsonProperty("Volume")
     private List<Long> volume = new ArrayList<>();
 
-    public StockDailyHistoryResponse(String symbol, List<String> datetime, List<BigDecimal> high, List<BigDecimal> low, List<BigDecimal> open, List<BigDecimal> close, List<Long> volume) {
+    public StockDailyHistoryForSymbolResponse(String symbol, List<String> datetime, List<BigDecimal> high, List<BigDecimal> low, List<BigDecimal> open, List<BigDecimal> close, List<Long> volume) {
         this.symbol = symbol;
         this.datetime = datetime;
         this.high = high;
@@ -42,18 +42,19 @@ public class StockDailyHistoryResponse {
         this.volume = volume;
     }
 
-    public StockDailyHistoryResponse() {}
+    public StockDailyHistoryForSymbolResponse() {}
 
-    public StockDailyHistoryResponse(StockDailyHistory stockHistory) {
+    public StockDailyHistoryForSymbolResponse(StockDailyHistory stockHistory) {
         this.symbol = stockHistory.getSymbol();
         this.datetime.add(stockHistory.getTradeDate().toString());
         this.high.add(stockHistory.getHigh());
         this.low.add(stockHistory.getLow());
         this.open.add(stockHistory.getLow());
         this.close.add(stockHistory.getClose());
+        this.volume.add(stockHistory.getVolume());
     }
 
-    public StockDailyHistoryResponse(List<StockDailyHistory> stockHistory, String symbol) {
+    public StockDailyHistoryForSymbolResponse(List<StockDailyHistory> stockHistory, String symbol) {
         this.symbol = symbol;
         stockHistory.forEach(sh -> {
             if (sh.getSymbol() != null && sh.getSymbol().equals(symbol)) {
@@ -62,6 +63,7 @@ public class StockDailyHistoryResponse {
                 this.low.add(sh.getLow());
                 this.open.add(sh.getLow());
                 this.close.add(sh.getClose());
+                this.volume.add(sh.getVolume());
             }
         });
     }

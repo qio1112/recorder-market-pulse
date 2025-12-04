@@ -35,7 +35,7 @@ import {
 import VChart from 'vue-echarts'
 import DashboardItem from '../components/portfolio/DashboardItem.vue'
 import { getRecords, ListRecordRequest } from '../api/RecordService.js'
-import { validateTrade, recordGroupBySymbolAndSort, enrichAccumulativeTradeData } from '../utils/portfolioUtils.js'
+import { validateTrade, recordGroupBySymbolAndSort, enrichAccumulativeTradeData, calculateTotalPortfolioData } from '../utils/portfolioUtils.js'
 
 use([
   CanvasRenderer,
@@ -54,6 +54,7 @@ export default defineComponent({
   data() {
     return {
       metrics: [
+        'totalPortfolio',
         'shares',
         'cashFlow',
         'cash',
@@ -61,11 +62,11 @@ export default defineComponent({
         'totalCost',
         'realizedPnL',
         'unrealizedPnL',
-        'totalStockValue',
-        'totalPortfolio'
+        'totalStockValue'
       ],
       chartOptions: {},
       enrichedPortfolioTradeData: {},
+      aggregatedTotal: { dates: [], totalPortfolio: [] },
       selectedSymbols: []
     }
   },
@@ -110,6 +111,20 @@ export default defineComponent({
             return { name: sym, type: 'line', smooth: true, data: points };
           })
           .filter(Boolean);
+        // add aggregated total for totalPortfolio
+        if (metric === 'totalPortfolio' && this.aggregatedTotal?.dates?.length) {
+          const aggPoints = this.aggregatedTotal.dates.map((d, idx) => [
+            d,
+            this.aggregatedTotal.totalPortfolio[idx]
+          ]);
+          series.push({
+            name: 'Total',
+            type: 'line',
+            smooth: true,
+            data: aggPoints,
+            lineStyle: { width: 3 }
+          });
+        }
         if (!series.length) return;
         // union dates for x-axis
         const datesSet = new Set();
@@ -141,6 +156,7 @@ export default defineComponent({
       const symbols = Object.keys(tradeDataGroupBySymbolAndSort);
       const stockHistoricalData = await this.getStockHistoryData(symbols);
       const enriched = enrichAccumulativeTradeData(tradeDataGroupBySymbolAndSort, stockHistoricalData);
+      this.aggregatedTotal = calculateTotalPortfolioData(enriched);
       // this.$store.dispatch('portfolio/updatePortfolioData', enriched);
       this.enrichedPortfolioTradeData = enriched || {};
       console.log('enrichd data: ', enriched);

@@ -4,6 +4,7 @@ set -euo pipefail
 # Default values
 BUILD_JAR=true
 REBUILD_IMAGE=true
+ENV_FILE="../.env"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -16,19 +17,19 @@ while [[ $# -gt 0 ]]; do
       REBUILD_IMAGE=false
       shift
       ;;
+    --env-file)
+      ENV_FILE="$2"
+      shift 2
+      ;;
     --help|-h)
       echo "Usage: $0 [OPTIONS]"
       echo ""
       echo "Options:"
       echo "  --no-build          Skip building the JAR file"
       echo "  --no-rebuild-image  Skip rebuilding the Docker image"
+      echo "  --env-file          Path of file with env variables"
       echo "  --help, -h          Show this help message"
       echo ""
-      echo "Examples:"
-      echo "  $0                    # Full build and rebuild"
-      echo "  $0 --no-build         # Skip JAR build, rebuild image"
-      echo "  $0 --no-rebuild-image # Build JAR, use existing image"
-      echo "  $0 --no-build --no-rebuild-image # Use existing JAR and image"
       exit 0
       ;;
     *)
@@ -48,7 +49,6 @@ else
 fi
 
 # 1) Load env vars from .env
-ENV_FILE="../.env"
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Error: $ENV_FILE not found. Create it with your prod secrets." >&2
   exit 1
@@ -70,6 +70,7 @@ if [[ "$REBUILD_IMAGE" == "true" ]]; then
     --build-arg BACKEND_APP_LOG_PATH=${BACKEND_APP_LOG_PATH} \
     --build-arg BACKEND_APP_FILE_PATH=${BACKEND_APP_FILE_PATH} \
     --build-arg MARKET_PULSE_PATH_SERVER=${MARKET_PULSE_PATH_SERVER} \
+    --build-arg APP_TIMEZONE=${APP_TIMEZONE} \
     -t recorder-backend:latest .
 else
   echo "Skipping Docker image rebuild..."

@@ -21,12 +21,10 @@ export default {
   },
   actions: {
     async updateStockHistoryData(context, symbols) {
-      // console.log("action symbols: " + symbols);
       if (!symbols) {
         return ;
       }
       const data = await getStockDailyHistoryData(symbols);
-      // console.log('api data: ', data);
       context.commit('setStockData', {symbols: symbols, stockData: data});
     },
     updatePortfolioData(context, data) {

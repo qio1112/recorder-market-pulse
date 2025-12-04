@@ -7,10 +7,10 @@ fi
 echo "Using path: $MARKET_PULSE_PATH"
 cd $MARKET_PULSE_PATH
 
-if [ -z "$MARKET_PULSE_VENV_PATH" ]; then
-  MARKET_PULSE_VENV_PATH="venv/bin/activate"
+if [ -z "$MARKET_PULSE_VENV_ACTIVATE_PATH" ]; then
+  MARKET_PULSE_VENV_ACTIVATE_PATH="venv/bin/activate"
 fi
-source ${MARKET_PULSE_VENV_PATH}
+source ${MARKET_PULSE_VENV_ACTIVATE_PATH}
 
 pip install --upgrade yfinance > /dev/null 2>&1
 

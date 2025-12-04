@@ -44,10 +44,41 @@ export function enrichAccumulativeTradeData(tradesBySymbol, historyData) {
   }
   const enriched = {};
   for (const [symbol, trades] of Object.entries(tradesBySymbol)) {
-    // console.log(symbol);
     enriched[symbol] = enrichAccumulativeTradeDataForSymbol(trades, historyData[symbol]);
   }
   return enriched;
+}
+
+export function calculateTotalPortfolioData(enrichedList) {
+  if (!enrichedList || typeof enrichedList !== 'object') {
+    return { dates: [], totalPortfolio: [] };
+  }
+
+  const dateSet = new Set();
+  const lookups = {};
+
+  for (const [symbol, data] of Object.entries(enrichedList)) {
+    const dates = data?.dates;
+    const totals = data?.totalPortfolio;
+    if (!Array.isArray(dates) || !Array.isArray(totals)) continue;
+    const map = new Map();
+    for (let i = 0; i < dates.length; i++) {
+      map.set(dates[i], Number(totals[i]) || 0);
+      dateSet.add(dates[i]);
+    }
+    lookups[symbol] = map;
+  }
+
+  const allDates = Array.from(dateSet).sort();
+  const totalPortfolio = allDates.map((date) => {
+    let sum = 0;
+    for (const map of Object.values(lookups)) {
+      sum += map.get(date) || 0;
+    }
+    return sum;
+  });
+
+  return { dates: allDates, totalPortfolio };
 }
 
 export function enrichAccumulativeTradeDataForSymbol(trades, historyData) {

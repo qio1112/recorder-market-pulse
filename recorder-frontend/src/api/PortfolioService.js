@@ -4,7 +4,7 @@ import { convertListHistoryToMap } from '../utils/portfolioUtils.js'
 export async function getSPYData() {
   try {
     const body = new RunUpdateStockScriptRequest();
-    const response = await http.post("/run-script/update_stock_data", body);
+    const response = await http.post("/stock-data/get-daily-history", body);
     // console.log(response);
     return response.data.Data[0];
   } catch(error) {
@@ -16,7 +16,7 @@ export async function getSPYData() {
 export async function getStockDailyHistoryData(symbols) {
   try {
     const body = new RunUpdateStockScriptRequest({symbols: symbols});
-    const response = await http.post("/run-script/update_stock_data", body);
+    const response = await http.post("/stock-data/get-daily-history", body);
     console.log('api response: ', response);
     return convertListHistoryToMap(response.data.Data);
   } catch(error) {
@@ -27,27 +27,27 @@ export async function getStockDailyHistoryData(symbols) {
 
 export class RunUpdateStockScriptRequest{
   constructor({
-    jobName = 'get_stock_price_day_history_json',
+    // jobName = 'get_stock_price_day_history_json',
     symbols = ['SPY'],
   } = {}) {
-    this.jobName = jobName;
-    this.symbols = toCommaString(symbols);
+    // this.jobName = jobName;
+    this.symbols = symbols;
   }
 
   toApi() {
     return {
-      jobName: this.jobName,
+      // jobName: this.jobName,
       symbols: this.symbols
     }
   }
 }
 
-function toCommaString(input) {
-  if (Array.isArray(input)) {
-    return input.join(",");
-  }
-  if (typeof input === "string") {
-    return input;
-  }
-  return "";
-}
+// function toCommaString(input) {
+//   if (Array.isArray(input)) {
+//     return input.join(",");
+//   }
+//   if (typeof input === "string") {
+//     return input;
+//   }
+//   return "";
+// }
