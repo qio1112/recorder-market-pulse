@@ -63,7 +63,8 @@ public class SecurityConfig {
         // IMPORTANT: no trailing slashes!
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:8081",
-                "http://localhost:8080"
+                "http://localhost:8080",
+                "https://192.168.1.162"
         ));
 
         configuration.setAllowedMethods(Arrays.asList(

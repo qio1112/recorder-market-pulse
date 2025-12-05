@@ -5,6 +5,10 @@ set -euo pipefail
 BUILD_JAR=true
 REBUILD_IMAGE=true
 ENV_FILE="../.env"
+DOCKER_PUSH=false
+BUILD_FRONTEND=false
+FRONTEND_PATH="../recorder-frontend"
+NOT_RUN_DEV_SERVER=true
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -21,6 +25,23 @@ while [[ $# -gt 0 ]]; do
       ENV_FILE="$2"
       shift 2
       ;;
+    --docker-push)
+      DOCKER_PUSH=true
+      shift
+      ;;
+    --not-run-dev-server)
+      NOT_RUN_DEV_SERVER=false
+      shift
+      ;;
+    --build-frontend)
+      BUILD_FRONTEND=true
+      if [[ -n "${2-}" && "${2:0:1}" != "-" ]]; then
+        FRONTEND_PATH="$2"
+        shift 2
+      else
+        shift
+      fi
+      ;;
     --help|-h)
       echo "Usage: $0 [OPTIONS]"
       echo ""
@@ -28,6 +49,9 @@ while [[ $# -gt 0 ]]; do
       echo "  --no-build          Skip building the JAR file"
       echo "  --no-rebuild-image  Skip rebuilding the Docker image"
       echo "  --env-file          Path of file with env variables"
+      echo "  --docker-push       Push docker image to dockerhub"
+      echo "  --not-run-dev-server   Not running docker container after running this script"
+      echo "  --build-frontend   [path] Build frontend (npm run build) from path (default ../recorder-frontend) and copy dist to backend static"
       echo "  --help, -h          Show this help message"
       echo ""
       exit 0
@@ -39,6 +63,29 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Build frontend if requested
+if [[ "$BUILD_FRONTEND" == "true" ]]; then
+  echo "Building frontend from ${FRONTEND_PATH}..."
+  if [[ ! -d "$FRONTEND_PATH" ]]; then
+    echo "Error: frontend path '$FRONTEND_PATH' does not exist." >&2
+    exit 1
+  fi
+  pushd "$FRONTEND_PATH" >/dev/null
+  npm run build
+  popd >/dev/null
+
+  STATIC_DIR="./src/main/resources/static"
+  DIST_DIR="$FRONTEND_PATH/dist"
+  if [[ ! -d "$DIST_DIR" ]]; then
+    echo "Error: dist directory '$DIST_DIR' not found after build." >&2
+    exit 1
+  fi
+  echo "Copying frontend dist to backend static directory..."
+  mkdir -p "$STATIC_DIR"
+  rm -rf "${STATIC_DIR:?}/"* 
+  cp -R "$DIST_DIR"/. "$STATIC_DIR"/
+fi
 
 # Build JAR if requested
 if [[ "$BUILD_JAR" == "true" ]]; then
@@ -72,6 +119,11 @@ if [[ "$REBUILD_IMAGE" == "true" ]]; then
     --build-arg MARKET_PULSE_PATH_SERVER=${MARKET_PULSE_PATH_SERVER} \
     --build-arg APP_TIMEZONE=${APP_TIMEZONE} \
     -t recorder-backend:latest .
+  if [[ "$DOCKER_PUSH" == "true" ]]; then
+    docker login
+    docker tag recorder-backend:latest yipeng6257/recorder-backend:latest
+    docker push yipeng6257/recorder-backend:latest
+  fi
 else
   echo "Skipping Docker image rebuild..."
 fi
@@ -82,16 +134,18 @@ if docker ps -a --format '{{.Names}}' | grep -q '^recorder-backend$' ; then
   docker rm -f recorder-backend
 fi
 
-# 4) Run the new container
-echo "Starting recorder-backend container..."
-docker run -d \
-  --name recorder-backend \
-  --restart unless-stopped \
-  --env-file ../.env \
-  -v ${BACKEND_APP_LOG_PATH_SERVER}:${BACKEND_APP_LOG_PATH} \
-  -v ${BACKEND_APP_FILE_PATH_SERVER}:${BACKEND_APP_FILE_PATH} \
-  -v ${MARKET_PULSE_PATH_SERVER}/resources:${MARKET_PULSE_PATH}/resources \
-  -p 8080:8080 \
-  recorder-backend:latest
+if [[ "$NOT_RUN_DEV_SERVER" == "true" ]]; then
+  # 4) Run the new container
+  echo "Starting recorder-backend container..."
+  docker run -d \
+    --name recorder-backend \
+    --restart unless-stopped \
+    --env-file ../.env \
+    -v ${BACKEND_APP_LOG_PATH_SERVER}:${BACKEND_APP_LOG_PATH} \
+    -v ${BACKEND_APP_FILE_PATH_SERVER}:${BACKEND_APP_FILE_PATH} \
+    -v ${MARKET_PULSE_PATH_SERVER}/resources:${MARKET_PULSE_PATH}/resources \
+    -p 8080:8080 \
+    recorder-backend:latest
 
-echo "→ recorder-backend is up!  Logs: docker logs -f recorder-backend"
+  echo "→ recorder-backend is up!  Logs: docker logs -f recorder-backend"
+fi
