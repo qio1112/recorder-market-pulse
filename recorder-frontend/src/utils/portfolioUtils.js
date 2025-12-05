@@ -44,7 +44,10 @@ export function enrichAccumulativeTradeData(tradesBySymbol, historyData) {
   }
   const enriched = {};
   for (const [symbol, trades] of Object.entries(tradesBySymbol)) {
-    enriched[symbol] = enrichAccumulativeTradeDataForSymbol(trades, historyData[symbol]);
+    const enrichedForSymbol = enrichAccumulativeTradeDataForSymbol(trades, historyData[symbol]);
+    if (enrichedForSymbol.shares.at(-1) !== 0) { // if holding 0 shares now, no need to show it
+      enriched[symbol] = enrichedForSymbol;
+    }
   }
   return enriched;
 }
@@ -79,6 +82,34 @@ export function calculateTotalPortfolioData(enrichedList) {
   });
 
   return { dates: allDates, totalPortfolio };
+}
+
+export function aggregateMetricAcrossSymbols(enrichedData, metric) {
+  if (!enrichedData || typeof enrichedData !== 'object') {
+    return { dates: [], values: [] };
+  }
+
+  const dateSet = new Set();
+  const lookups = [];
+
+  Object.values(enrichedData).forEach((data) => {
+    const dates = data?.dates;
+    const values = data?.[metric];
+    if (!Array.isArray(dates) || !Array.isArray(values)) return;
+    const map = new Map();
+    for (let i = 0; i < dates.length; i++) {
+      map.set(dates[i], Number(values[i]) || 0);
+      dateSet.add(dates[i]);
+    }
+    lookups.push(map);
+  });
+
+  const allDates = Array.from(dateSet).sort();
+  const aggregated = allDates.map((d) =>
+    lookups.reduce((sum, map) => sum + (map.get(d) || 0), 0)
+  );
+
+  return { dates: allDates, values: aggregated };
 }
 
 export function enrichAccumulativeTradeDataForSymbol(trades, historyData) {

@@ -65,8 +65,15 @@ public class RecordService {
     @Transactional
     public Record createRecord(Record record, List<RecFile> images, List<RecFile> regularFiles, List<String> labelNames,
                                User user, AlertSchedule alertSchedule, boolean isPublic, Map<String, String> metadata) {
+        if (labelNames.contains("INVESTMENT_REC")) {
+            if (metadata.containsKey("symbol") && !labelNames.contains(metadata.get("symbol"))) {
+                labelNames.add(metadata.get("symbol"));
+            }
+            if (metadata.containsKey("date") && !labelNames.contains(metadata.get("date"))) {
+                labelNames.add(metadata.get("date"));
+            }
+        }
         List<Label> labels = createLabelsIfNotExistThenGet(labelNames, user, true);
-        record.setLabels(labels);
         List<RecFile> allRecFiles = new ArrayList<>(images);
         allRecFiles.addAll(regularFiles);
         recFileRepository.saveAll(allRecFiles);
@@ -74,6 +81,7 @@ public class RecordService {
         record.setLastModifiedTime(ZonedDateTime.now());
         record.setAlertSchedule(alertSchedule);
         record.setMetadata(metadata);
+        record.setLabels(labels);
         Record newRecord = recordRepository.save(record);
         scheduleAlertService.scheduleAlert(alertSchedule);
         logger.info("Created new record. ID: {}, title: {}, createdBy: {}, isPublic: {}", newRecord.getId(), newRecord.getTitle(), newRecord.getCreatedBy().getUsername(), isPublic);

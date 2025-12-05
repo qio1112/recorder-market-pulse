@@ -31,19 +31,20 @@ export default {
 <style scoped>
 header {
   width: 100%;
-  height: 4rem;
   background-color: #00768d;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  padding: 0 1.5rem;
+  padding: 0.75rem 1rem;
+  gap: 0.5rem;
 }
 
 header a {
   text-decoration: none;
   color: #ffffff;
   display: inline-block;
-  padding: 0.75rem 1.5rem;
+  padding: 0.65rem 1.1rem;
   border: 1px solid transparent;
   border-radius: 4px
 }
@@ -52,7 +53,7 @@ header a {
   background: none;
   border: 1px solid transparent;
   color: #ffffff;
-  padding: 0.75rem 1.5rem;
+  padding: 0.65rem 1.1rem;
   font: inherit;
   cursor: pointer;
 }
@@ -95,14 +96,28 @@ header ul {
   padding: 0;
   display: flex;
   align-items: center;
+  gap: 0.35rem;
   margin-left: auto;
+  overflow-x: auto;
+  width: 100%;
+  flex-wrap: wrap;
 }
 
 li {
-  margin: 0 0.5rem;
+  margin: 0;
 }
 
 .nav-action {
   border-radius: 4px;
+}
+
+@media (min-width: 640px) {
+  header {
+    flex-wrap: nowrap;
+  }
+  header ul {
+    flex-wrap: nowrap;
+    width: auto;
+  }
 }
 </style>
