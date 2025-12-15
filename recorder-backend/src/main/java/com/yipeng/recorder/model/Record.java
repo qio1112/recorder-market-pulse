@@ -30,6 +30,7 @@ public class Record {
     @Column(name = "last_modified_time")
     private ZonedDateTime lastModifiedTime;
 
+    @Lob
     @Column(nullable = false)
     private String content;
 

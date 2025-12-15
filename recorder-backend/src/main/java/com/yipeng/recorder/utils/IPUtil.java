@@ -9,8 +9,9 @@ public class IPUtil {
 
     public static String getPrivateIP() {
         try {
-            InetAddress localHost = InetAddress.getLocalHost();
-            return localHost.getHostAddress();
+//            InetAddress address1 = InetAddress.getLocalHost();
+            InetAddress address2 = InetAddress.getByName("host.docker.internal");
+            return address2.getHostAddress() == null ? address2.getHostAddress() : "";
         } catch (UnknownHostException e) {
             return "";
         }

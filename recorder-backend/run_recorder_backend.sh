@@ -8,7 +8,7 @@ ENV_FILE="../.env"
 DOCKER_PUSH=false
 BUILD_FRONTEND=false
 FRONTEND_PATH="../recorder-frontend"
-NOT_RUN_DEV_SERVER=true
+RUN_DEV_SERVER=true
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -30,7 +30,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --not-run-dev-server)
-      NOT_RUN_DEV_SERVER=false
+      RUN_DEV_SERVER=false
       shift
       ;;
     --build-frontend)
@@ -119,13 +119,14 @@ if [[ "$REBUILD_IMAGE" == "true" ]]; then
     --build-arg MARKET_PULSE_PATH_SERVER=${MARKET_PULSE_PATH_SERVER} \
     --build-arg APP_TIMEZONE=${APP_TIMEZONE} \
     -t recorder-backend:latest .
-  if [[ "$DOCKER_PUSH" == "true" ]]; then
-    docker login
-    docker tag recorder-backend:latest yipeng6257/recorder-backend:latest
-    docker push yipeng6257/recorder-backend:latest
-  fi
 else
   echo "Skipping Docker image rebuild..."
+fi
+
+if [[ "$DOCKER_PUSH" == "true" ]]; then
+  docker login
+  docker tag recorder-backend:latest yipeng6257/recorder-backend:latest
+  docker push yipeng6257/recorder-backend:latest
 fi
 
 # 3) Stop & remove any existing container
@@ -134,7 +135,7 @@ if docker ps -a --format '{{.Names}}' | grep -q '^recorder-backend$' ; then
   docker rm -f recorder-backend
 fi
 
-if [[ "$NOT_RUN_DEV_SERVER" == "true" ]]; then
+if [[ "$RUN_DEV_SERVER" == "true" ]]; then
   # 4) Run the new container
   echo "Starting recorder-backend container..."
   docker run -d \

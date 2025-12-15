@@ -3,6 +3,7 @@
     <header class="head">
       <h1>Portfolio Overview</h1>
       <p class="muted">Trades aggregated from records metadata</p>
+      <p class="muted" v-if="hasInvalidSymbols">Invalid Symbols: {{ invalidSymbols.join(',') }}</p>
     </header>
 
     <div class="chart-grid single">
@@ -78,12 +79,16 @@ export default defineComponent({
       enrichedPortfolioTradeData: {},
       aggregatedMetrics: {},
       donutOption: null,
-      selectedSymbols: []
+      selectedSymbols: [],
+      invalidSymbols: []
     }
   },
   computed: {
     otherMetrics() {
       return this.metrics.filter((m) => m !== 'totalPortfolio');
+    },
+    hasInvalidSymbols() {
+      return this.invalidSymbols && this.invalidSymbols.length > 0;
     }
   },
   mounted() {
@@ -271,7 +276,12 @@ export default defineComponent({
       const tradeDataGroupBySymbolAndSort = recordGroupBySymbolAndSort(tradeDataRaw);
       const symbols = Object.keys(tradeDataGroupBySymbolAndSort);
       const stockHistoricalData = await this.getStockHistoryData(symbols);
-      const enriched = enrichAccumulativeTradeData(tradeDataGroupBySymbolAndSort, stockHistoricalData);
+      const tradeDataWithValidSymbols = Object.fromEntries(
+        Object.entries(tradeDataGroupBySymbolAndSort).filter(([key]) =>
+          !this.invalidSymbols.includes(key)
+        )
+      );
+      const enriched = enrichAccumulativeTradeData(tradeDataWithValidSymbols, stockHistoricalData);
       this.enrichedPortfolioTradeData = enriched || {};
       console.log('enrichd data: ', enriched);
       this.selectedSymbols = Object.keys(this.enrichedPortfolioTradeData);
@@ -279,10 +289,14 @@ export default defineComponent({
     },
     async getStockHistoryData(symbols) {
       let stockData = this.$store.getters['portfolio/getStockDailyHistoryData'];
-      if (!stockData || Object.keys(stockData).length === 0) {
+      const existingSymbols = Object.keys(stockData);
+      const invalidSymbols = this.$store.getters['portfolio/getInvalidSymbols'];
+      const symbolsExcludingInvalid = invalidSymbols ? symbols.filter(sym => !invalidSymbols.includes(sym)) : symbols;
+      if (!stockData || Object.keys(stockData).length === 0 || existingSymbols.length < symbolsExcludingInvalid.length) {
         await this.$store.dispatch('portfolio/updateStockHistoryData', symbols);
       }
       stockData = this.$store.getters['portfolio/getStockDailyHistoryData'];
+      this.invalidSymbols = this.$store.getters['portfolio/getInvalidSymbols'];
       return stockData;
     }
   }

@@ -6,6 +6,7 @@ export default {
     return {
       // spyData: null,
       symbols: [],
+      invalidSymbols: [],
       stockData: {},  // { symbol: "ABC", data: {...} }
       portfolioData: {}
     };
@@ -13,6 +14,7 @@ export default {
   mutations: {
     setStockData(state, payload) {
       state.symbols = payload.symbols;
+      state.invalidSymbols = payload.invalidSymbols;
       state.stockData = payload.stockData;
     },
     setPortfolioData(state, payload) {
@@ -25,7 +27,11 @@ export default {
         return ;
       }
       const data = await getStockDailyHistoryData(symbols);
-      context.commit('setStockData', {symbols: symbols, stockData: data});
+      const validSymbols = Object.keys(data);
+      const invalidSymbols = data.invalidSymbols;
+      context.commit('setStockData', {symbols: validSymbols, 
+                                      invalidSymbols: invalidSymbols, 
+                                      stockData: data.data});
     },
     updatePortfolioData(context, data) {
       context.commit('setPortfolioData', data);
@@ -34,6 +40,9 @@ export default {
   getters: {
     getStockDailyHistoryData(state) {
       return state.stockData;
+    },
+    getInvalidSymbols(state) {
+      return state.invalidSymbols;
     }
   }
 }

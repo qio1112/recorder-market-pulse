@@ -18,7 +18,8 @@ export async function getStockDailyHistoryData(symbols) {
     const body = new RunUpdateStockScriptRequest({symbols: symbols});
     const response = await http.post("/stock-data/get-daily-history", body);
     console.log('api response: ', response);
-    return convertListHistoryToMap(response.data.Data);
+    const invalidSymbols = response.data.InvalidSymbols;
+    return { data: convertListHistoryToMap(response.data.Data), invalidSymbols: invalidSymbols };
   } catch(error) {
     console.log(error);
     return null;

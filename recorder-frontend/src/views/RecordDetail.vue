@@ -281,6 +281,10 @@ p {
   line-height: 1.5;
 }
 
+.content p {
+  white-space: pre-wrap;
+}
+
 .muted {
   color: #52606d;
 }

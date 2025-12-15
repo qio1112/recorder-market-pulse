@@ -171,7 +171,7 @@ public class RecordController {
 
         // update and save record, labels, recFiles
         record = recordService.updateRecord(record, deleteFileIds, imageFiles, regularFiles, updateRecordRequest.getLabels(), user, alertSchedule,
-                updateRecordRequest.isCancelAlert());
+                updateRecordRequest.isCancelAlert(), updateRecordRequest.getMetadata());
 
         return ResponseEntity.ok().body(record);
     }

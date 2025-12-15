@@ -15,6 +15,10 @@
           @keyup.enter.prevent="addLabel"
         />
         <button type="button" class="add-btn" @click="addLabel">Add</button>
+        <label class="trade-check">
+          <input type="checkbox" v-model="isTrade" />
+          is_trade
+        </label>
       </div>
       <div class="labels-list" v-if="form.labels.length">
         <span v-for="label in form.labels" :key="label" class="chip">
@@ -143,6 +147,9 @@ export default {
         cancelAlert: this.initialRecord.cancelAlert ?? false
       },
       newLabel: '',
+      isTrade: this.initialRecord.labels
+        ? this.initialRecord.labels.some((l) => l.labelName === 'INVESTMENT_REC' || l === 'INVESTMENT_REC')
+        : false,
       metadataRows: this.initialRecord.metadata
         ? Object.entries(this.initialRecord.metadata).map(([key, value]) => ({ key, value }))
         : []
@@ -151,6 +158,24 @@ export default {
   computed: {
     existingFiles() {
       return this.initialRecord.recFiles || [];
+    }
+  },
+  watch: {
+    'form.labels': {
+      deep: true,
+      handler() {
+        this.isTrade = this.form.labels.includes('INVESTMENT_REC');
+      }
+    },
+    isTrade(val) {
+      if (val) {
+        if (!this.form.labels.includes('INVESTMENT_REC')) {
+          this.form.labels.push('INVESTMENT_REC');
+        }
+        this.ensureTradeMetadata();
+      } else {
+        this.form.labels = this.form.labels.filter((l) => l !== 'INVESTMENT_REC');
+      }
     }
   },
   methods: {
@@ -168,12 +193,24 @@ export default {
     },
     removeLabel(label) {
       this.form.labels = this.form.labels.filter((l) => l !== label);
+      if (label === 'INVESTMENT_REC') {
+        this.isTrade = false;
+      }
     },
     addMetadata() {
       this.metadataRows.push({ key: '', value: '' });
     },
     removeMetadata(index) {
       this.metadataRows.splice(index, 1);
+    },
+    ensureTradeMetadata() {
+      const requiredKeys = ['symbol', 'action', 'price', 'shares', 'date'];
+      const existing = new Set(this.metadataRows.map((m) => (m.key || '').toLowerCase()));
+      requiredKeys.forEach((key) => {
+        if (!existing.has(key)) {
+          this.metadataRows.push({ key, value: '' });
+        }
+      });
     },
     cleanFileName(name) {
       if (!name) return '';
@@ -229,6 +266,14 @@ select {
 .labels-row {
   display: flex;
   gap: 0.5rem;
+}
+
+.trade-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #1f2933;
+  font-size: 0.85rem;
 }
 
 .add-btn {
