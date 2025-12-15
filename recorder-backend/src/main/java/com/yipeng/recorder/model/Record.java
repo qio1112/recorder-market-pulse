@@ -31,7 +31,7 @@ public class Record {
     private ZonedDateTime lastModifiedTime;
 
     @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
     @ManyToMany(fetch = FetchType.EAGER)
