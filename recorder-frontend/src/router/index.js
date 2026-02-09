@@ -6,6 +6,7 @@ import UserAccountInfo from '../views/UserAccountInfo.vue'
 import AddNewRecord from '../views/AddNewRecord.vue'
 import EditRecord from '../views/EditRecord.vue'
 import PortfolioPage from '../views/PortfolioPage.vue'
+import PageNotFound from '../views/PageNotFound.vue'
 import store from '../store/index.js'
 
 const router = createRouter({
@@ -21,7 +22,7 @@ const router = createRouter({
     { path: '/account', component: UserAccountInfo, meta: { requiresAuth: true } },
     { path: '/login', component: LoginPage, meta: { requiresUnauth: true }},
     { path: '/signup', component: null, meta: { requiresUnauth: true }},
-    { path: '/:notFound(.*)', component: null }
+    { path: '/:notFound(.*)', component: PageNotFound }
   ]
 });
 

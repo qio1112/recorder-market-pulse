@@ -8,6 +8,12 @@
 
     <div class="chart-grid single">
       <dashboard-item title="totalPortfolio">
+        <div class="controls">
+          <label class="control-label">
+            <input type="checkbox" v-model="showTotalAggregate" />
+            Show total line
+          </label>
+        </div>
         <v-chart
           v-if="chartOptions.totalPortfolio"
           :option="chartOptions.totalPortfolio"
@@ -79,6 +85,7 @@ export default defineComponent({
       enrichedPortfolioTradeData: {},
       aggregatedMetrics: {},
       donutOption: null,
+      showTotalAggregate: true,
       selectedSymbols: [],
       invalidSymbols: []
     }
@@ -93,6 +100,11 @@ export default defineComponent({
   },
   mounted() {
     this.getSourceData();
+  },
+  watch: {
+    showTotalAggregate() {
+      this.buildCharts();
+    }
   },
   methods: {
     parseMetadata(meta) {
@@ -172,6 +184,7 @@ export default defineComponent({
         'totalPortfolio'
       ];
       if (!aggregateKeys.includes(metric)) return series;
+      if (metric === 'totalPortfolio' && !this.showTotalAggregate) return series;
       const agg = this.aggregateMetric(metric);
       if (!agg.dates.length) return series;
       const aggPoints = agg.dates.map((d, idx) => [d, agg.values[idx]]);
@@ -281,6 +294,7 @@ export default defineComponent({
           !this.invalidSymbols.includes(key)
         )
       );
+      console.log("valid symbols: ", tradeDataWithValidSymbols)
       const enriched = enrichAccumulativeTradeData(tradeDataWithValidSymbols, stockHistoricalData);
       this.enrichedPortfolioTradeData = enriched || {};
       console.log('enrichd data: ', enriched);
@@ -312,6 +326,20 @@ export default defineComponent({
 
 .head {
   margin-bottom: 1rem;
+}
+
+.controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.control-label {
+  color: #243b53;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .muted {
