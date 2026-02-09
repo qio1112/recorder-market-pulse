@@ -1,6 +1,9 @@
+import time
 from pathlib import Path
 import os
 from datetime import datetime
+
+from yfinance.exceptions import YFRateLimitError
 
 from main.data_source.data_source import (StockPriceData, StockOptionData, get_symbols_from_file,
                                           is_today_trade_day_yf, get_current_minute_stock_price_json, get_stock_price_day_history_json,
@@ -47,7 +50,7 @@ def update_stock_data(update_previous_trade_date=False,
         logger.info(f"Revised date: {today}")
     if now > market_close_time or update_previous_trade_date:
         logger.info("\n\n\n====================== Updating stock data... =======================\n\n")
-        spd.update_stock_data_from_yf(symbols, max_workers=8)
+        # spd.update_stock_data_from_yf(symbols, max_workers=8)
         sod.update_option_data_from_yf(option_symbols, revised_on_date=today, max_workers=8, time_label="close")
         logger.info("\n\n====================== Stock data updated.  =======================\n\n\n")
     elif now > market_noon_time:
@@ -110,5 +113,21 @@ def get_fear_greed_index_data():
 
 def get_today_is_trade_day():
     logger = setup_logging("get_today_is_trade_day")
-    today_is_trade_day = is_today_trade_day_yf()
-    logger.info("result data: {}"), today_is_trade_day
+    retry_count = 0
+    max_retry = 7
+    today_is_trade_day = None
+    while retry_count < max_retry and today_is_trade_day is None:
+        try:
+            today_is_trade_day = is_today_trade_day_yf()
+        except Exception as e:
+            logger.error("Exception: ", e)
+            today_is_trade_day = None
+            retry_count += 1
+            wait_time = (retry_count + 2) ** 2
+            logger.info(f"Retry getting today is trade day after {wait_time} seconds.")
+            time.sleep(wait_time)
+
+    if today_is_trade_day is None:
+        logger.error(f"Failed to run get_today_is_trade_day after retries. Setting to false.")
+        today_is_trade_day = False
+    logger.info(f"result data: {today_is_trade_day}")
