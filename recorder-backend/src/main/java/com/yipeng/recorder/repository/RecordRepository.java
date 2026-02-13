@@ -3,13 +3,13 @@ package com.yipeng.recorder.repository;
 import com.yipeng.recorder.model.Label;
 import com.yipeng.recorder.model.Record;
 import com.yipeng.recorder.model.User;
+import com.yipeng.recorder.response.RecordDailyCountDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.List;
 
@@ -83,4 +83,19 @@ public interface RecordRepository extends JpaRepository<Record, Long> {
             Pageable pageable
     );
 
+    @Query("""
+      SELECT new com.yipeng.recorder.response.RecordDailyCountDto(l.labelName, count(distinct r.id))
+      FROM Record r
+      JOIN r.labels l
+      WHERE l.type = 'DATE'
+        AND l.labelName >= :startDate
+        AND l.labelName <= :endDate
+        AND r.createdBy.id = :userId
+      GROUP BY l.labelName
+    """)
+    List<RecordDailyCountDto> countByDateLabelRange(
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate,
+            @Param("userId") Long userId
+    );
 }

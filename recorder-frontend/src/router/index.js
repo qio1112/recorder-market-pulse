@@ -7,14 +7,21 @@ import AddNewRecord from '../views/AddNewRecord.vue'
 import EditRecord from '../views/EditRecord.vue'
 import PortfolioPage from '../views/PortfolioPage.vue'
 import PageNotFound from '../views/PageNotFound.vue'
+import CalendarPage from '../views/CalendarPage.vue'
 import store from '../store/index.js'
+
+const currentMonthParam = () => {
+  const now = new Date();
+  return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
 
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     { path: '/', redirect: '/records', meta: { requiresAuth: true } },
     { path: '/records', component: RecordsPage, meta: { requiresAuth: true } },
-    { path: '/records/calendar', component: null, redirect: '/records', meta: { requiresAuth: true } },
+    { path: '/calendar', redirect: () => `/calendar/${currentMonthParam()}`, meta: { requiresAuth: true } },
+    { path: '/calendar/:month(\\d{6})', component: CalendarPage, meta: { requiresAuth: true } },
     { path: '/records/:recordID', component: RecordDetail, props: true, meta: { requiresAuth: true } },
     { path: '/add-record', component: AddNewRecord, meta: { requiresAuth: true } },
     { path: '/edit-record/:recordID', component: EditRecord, props: true, meta: { requiresAuth: true } },

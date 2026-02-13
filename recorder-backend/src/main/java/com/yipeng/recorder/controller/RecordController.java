@@ -7,14 +7,17 @@ import com.yipeng.recorder.model.AlertSchedule;
 import com.yipeng.recorder.model.RecFile;
 import com.yipeng.recorder.model.User;
 import com.yipeng.recorder.model.Record;
+import com.yipeng.recorder.request.DateRangeRequest;
 import com.yipeng.recorder.request.ListRecordsRequest;
 import com.yipeng.recorder.request.NewRecordRequest;
 import com.yipeng.recorder.request.UpdateRecordRequest;
+import com.yipeng.recorder.response.RecordDailyCountDto;
 import com.yipeng.recorder.service.LabelService;
 import com.yipeng.recorder.service.RecFileService;
 import com.yipeng.recorder.service.RecordService;
 import com.yipeng.recorder.service.UserService;
 import com.yipeng.recorder.utils.AlertType;
+import com.yipeng.recorder.utils.DateTimeUtils;
 import com.yipeng.recorder.utils.RecFileType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,12 +61,19 @@ public class RecordController {
 
     private final RecFileService recFileService;
 
+    private final DateTimeUtils dateTimeUtils;
+
     @Autowired
-    public RecordController(UserService userService, RecordService recordService, LabelService labelService, RecFileService recFileService) {
+    public RecordController(UserService userService,
+                            RecordService recordService,
+                            LabelService labelService,
+                            RecFileService recFileService,
+                            DateTimeUtils dateTimeUtils) {
         this.userService = userService;
         this.recordService = recordService;
         this.labelService = labelService;
         this.recFileService = recFileService;
+        this.dateTimeUtils = dateTimeUtils;
     }
 
     @PostMapping(value = "/create-record", consumes = "multipart/form-data")
@@ -237,5 +247,20 @@ public class RecordController {
                 user);
 
         return ResponseEntity.ok().body(recordPage);
+    }
+
+    @PostMapping(value="/recordCountByDateLabelInRange", consumes="application/json")
+    public ResponseEntity<List<RecordDailyCountDto>> getRecordCountByDateLabelRange(@RequestBody DateRangeRequest dateRangeRequest) {
+        User user = userService.findUserFromAuthentication();
+        if (user == null) {
+            throw new ForbiddenException();
+        }
+        if (!dateTimeUtils.isValidDateString(dateRangeRequest.getStartDate()) || !dateTimeUtils.isValidDateString(dateRangeRequest.getEndDate())) {
+            throw new InvalidRequestException("Invalid input date format, must be yyyy-MM-dd");
+        }
+        List<RecordDailyCountDto> dailyCounts = recordService.getRecordCountByDateLabelRange(dateRangeRequest.getStartDate(),
+                dateRangeRequest.getEndDate(), user);
+
+        return ResponseEntity.ok().body(dailyCounts);
     }
 }

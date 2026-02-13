@@ -8,6 +8,9 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
+    "@fullcalendar/core": "^6.1.20",
+    "@fullcalendar/daygrid": "^6.1.20",
+    "@fullcalendar/vue3": "^6.1.20",
     "axios": "^1.13.2",
     "core-js": "^3.8.3",
     "echarts": "^5.5.0",

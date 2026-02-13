@@ -6,6 +6,7 @@ import com.yipeng.recorder.repository.AlertScheduleRepository;
 import com.yipeng.recorder.repository.LabelRepository;
 import com.yipeng.recorder.repository.RecFileRepository;
 import com.yipeng.recorder.repository.RecordRepository;
+import com.yipeng.recorder.response.RecordDailyCountDto;
 import com.yipeng.recorder.utils.DateTimeUtils;
 import com.yipeng.recorder.utils.LabelType;
 import jakarta.transaction.Transactional;
@@ -264,5 +265,9 @@ public class RecordService {
                 logger.warn("Failed to delete file {} \n with exception {}", deletePath, e.getMessage());
             }
         }
+    }
+
+    public List<RecordDailyCountDto> getRecordCountByDateLabelRange(String startDate, String endDate, User user) {
+        return recordRepository.countByDateLabelRange(startDate, endDate, user.getId());
     }
 }

@@ -86,6 +86,25 @@ export async function editRecord(editRecordRequest) {
 }
 
 
+export async function getRecordCountByDateLabelRange(startDate, endDate) {
+  try {
+    if (!startDate || !endDate) {
+      throw new Error('Start and end date cannot be empty.');
+    }
+    const formData = {
+      startDate: startDate,
+      endDate: endDate
+    }
+
+    const response = await http.post('/records/recordCountByDateLabelInRange', formData);
+    return response.data;
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+}
+
+
 export class ListRecordRequest {
   constructor({
     titleContains = "",

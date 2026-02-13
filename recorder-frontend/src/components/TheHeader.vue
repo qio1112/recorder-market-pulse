@@ -3,7 +3,7 @@
     <h1><router-link to="/">REC</router-link></h1>
     <ul v-if="isUserAuthenticated">
       <li><router-link to="/records">Records</router-link></li>
-      <li><router-link to="/records/calendar">Calendar</router-link></li>
+      <li><router-link to="/calendar">Calendar</router-link></li>
       <li><router-link to="/add-record">Add Record</router-link></li>
       <li><router-link to="/portfolio">Portfolio</router-link></li>
       <li><router-link to="/account">Account</router-link></li>
