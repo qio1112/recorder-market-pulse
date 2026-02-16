@@ -3,8 +3,6 @@ package com.yipeng.recorder.service;
 import com.yipeng.recorder.model.StockDailyHistory;
 import com.yipeng.recorder.utils.DateTimeUtils;
 import com.yipeng.recorder.utils.IPUtil;
-import com.yipeng.recorder.utils.RunScriptResult;
-import com.yipeng.recorder.utils.ScriptUtil;
 import jakarta.mail.MessagingException;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -27,17 +25,17 @@ public class CronService {
 
     private final SendEmailService sendEmailService;
     private final DateTimeUtils dateTimeUtils;
-    private final StockDataScriptService stockDataScriptService;
+    private final MarketPulseApiService marketPulseApiService;
     private final StockDailyHistoryService stockDailyHistoryService;
 
     @Autowired
     public CronService(SendEmailService sendEmailService,
                        DateTimeUtils dateTimeUtils,
-                       StockDataScriptService stockDataScriptService,
+                       MarketPulseApiService marketPulseApiService,
                        StockDailyHistoryService stockDailyHistoryService) {
         this.sendEmailService = sendEmailService;
         this.dateTimeUtils = dateTimeUtils;
-        this.stockDataScriptService = stockDataScriptService;
+        this.marketPulseApiService = marketPulseApiService;
         this.stockDailyHistoryService = stockDailyHistoryService;
     }
 
@@ -91,8 +89,9 @@ public class CronService {
     public void updateStockDailyHistory(String timeName) {
         String today = dateTimeUtils.getCurrentDateString();
         String fullTimeName = today + " " + timeName;
-        Map<String, List<StockDailyHistory>> stockDailyHistory = this.stockDataScriptService.getStockDailyHistoryFromScript(null, null);
+        Map<String, List<StockDailyHistory>> stockDailyHistory = this.marketPulseApiService.getStockDailyHistory(null); // use default tracked symbols
         this.stockDailyHistoryService.updateStockDailyHistoryDatabase(stockDailyHistory);
+        logger.info("Updated daily stock data: " + fullTimeName + "\n symbols: " + StringUtils.join(stockDailyHistory.keySet(), ","));
         this.sendTaskEmail("Update stock daily history " + fullTimeName, "Update stock daily history for symbols: " + StringUtils.join(stockDailyHistory.keySet(), ","));
     }
 
@@ -100,9 +99,9 @@ public class CronService {
     public void updateStockOptionDataJob(String timeName) {
         String today = dateTimeUtils.getCurrentDateString();
         String fullTimeName = today + " " + timeName;
-        String scriptName = "update_stock_data";
-        RunScriptResult result = ScriptUtil.runScript(scriptName, null);
-        this.sendTaskEmail("Run script: " + scriptName + " " + fullTimeName, result.getOutput());
+        String response = this.marketPulseApiService.runUpdateStockOptionDataApi(null);
+        logger.info("Updated option data: " + fullTimeName + "\n" + response);
+        this.sendTaskEmail("Updated option data " + fullTimeName, response);
     }
 
     public void sendTaskEmail(String subject, String content) {
@@ -115,15 +114,13 @@ public class CronService {
     }
 
     public void serverStatusEmail(String timeName) {
-        String privateIP = IPUtil.getPrivateIP();
         String publicIP = IPUtil.getPublicIP();
         String today = dateTimeUtils.getCurrentDateString();
         String fullTimeName = today + " " + timeName;
         String content = """
                 Server is on.
-                private ip: %s
                 public ip: %s
-                """.formatted(privateIP, publicIP);
+                """.formatted(publicIP);
         this.sendTaskEmail("STATUS: Server is on " + fullTimeName, content);
     }
 }

@@ -493,6 +493,8 @@ def get_symbols_from_file(symbols_file_path: str):
         return symbols
 
 
+
+
 def is_today_trade_day_yf():
     # Fetch data for the specified ticker
     data = yf.Ticker("^SPX").history(period="1d")

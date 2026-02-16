@@ -6,7 +6,8 @@ from datetime import datetime
 from yfinance.exceptions import YFRateLimitError
 
 from main.data_source.data_source import (StockPriceData, StockOptionData, get_symbols_from_file,
-                                          is_today_trade_day_yf, get_current_minute_stock_price_json, get_stock_price_day_history_json,
+                                          is_today_trade_day_yf, get_current_minute_stock_price_json,
+                                          get_stock_price_day_history_json,
                                           get_fear_greed_index_cnn)
 from main.utils.logger_utils import setup_logging
 from main.utils.path_utils import get_resources_path
@@ -28,7 +29,7 @@ def update_stock_data(update_previous_trade_date=False,
 
     if not today_is_trade_day and not update_previous_trade_date:
         logger.info("Today is NOT a trade day, no data will be updated.")
-        return
+        return "Today is NOT a trade day, no data will be updated."
     if symbols_path is None:
         symbols_path = get_resources_path("symbols", "symbols.txt")
     if option_symbols_path is None:
@@ -38,36 +39,48 @@ def update_stock_data(update_previous_trade_date=False,
     if option_symbols is None:
         option_symbols = get_symbols_from_file(option_symbols_path)
 
-    logger.info(f"Found symbols: {symbols}")
+    # logger.info(f"Found symbols: {symbols}")
     logger.info(f"Found option symbols: {option_symbols}")
 
     spd = StockPriceData()
     sod = StockOptionData()
 
+    response = f"Found option symbols: {option_symbols}.\n"
     if update_previous_trade_date:
         logger.info(f"Revised date: {today}")
         today = spd.get_nearest_prior_trade_day(today, include_same=False)
         logger.info(f"Revised date: {today}")
-    if now > market_close_time or update_previous_trade_date:
-        logger.info("\n\n\n====================== Updating stock data... =======================\n\n")
-        # spd.update_stock_data_from_yf(symbols, max_workers=8)
-        sod.update_option_data_from_yf(option_symbols, revised_on_date=today, max_workers=8, time_label="close")
-        logger.info("\n\n====================== Stock data updated.  =======================\n\n\n")
-    elif now > market_noon_time:
-        logger.info("\n\n\n====================== Updating noon option data... =======================\n\n")
-        sod.update_option_data_from_yf(option_symbols, revised_on_date=today, max_workers=8, time_label="noon")
-        logger.info("\n\n====================== Noon option data updated.  =======================\n\n\n")
-    elif now > market_open_time: # update option data only
-        logger.info("\n\n\n====================== Updating morning option data... =======================\n\n")
-        sod.update_option_data_from_yf(option_symbols, revised_on_date=today, max_workers=8, time_label="open")
-        logger.info("\n\n====================== Morning option data updated.  =======================\n\n\n")
-    else:
-        logger.warning(f"Market not open (9:30 am) yet!! {now}")
+    response += f"today: {today}\n"
+    try:
+        if now > market_close_time or update_previous_trade_date:
+            logger.info("\n\n\n====================== Updating stock data... =======================\n\n")
+            # spd.update_stock_data_from_yf(symbols, max_workers=8)
+            sod.update_option_data_from_yf(option_symbols, revised_on_date=today, max_workers=8, time_label="close")
+            logger.info("\n\n====================== Stock data updated.  =======================\n\n\n")
+            response += "Updated daily stock data.\n"
+        elif now > market_noon_time:
+            logger.info("\n\n\n====================== Updating noon option data... =======================\n\n")
+            sod.update_option_data_from_yf(option_symbols, revised_on_date=today, max_workers=8, time_label="noon")
+            logger.info("\n\n====================== Noon option data updated.  =======================\n\n\n")
+            response += "Updated daily noon stock data.\n"
+        elif now > market_open_time:  # update option data only
+            logger.info("\n\n\n====================== Updating morning option data... =======================\n\n")
+            sod.update_option_data_from_yf(option_symbols, revised_on_date=today, max_workers=8, time_label="open")
+            logger.info("\n\n====================== Morning option data updated.  =======================\n\n\n")
+            response += "Updated daily morning stock data.\n"
+        else:
+            logger.warning(f"Market not open (9:30 am) yet!! {now}")
+            response += "Market not open (9:30 am) yet!! {now}\n"
+    except Exception as e:
+        logger.error(e)
+        return f"Error: \n{e}"
+    finally:
+        spd.close()
+    return response
 
-    spd.close()
 
-
-def update_stock_data_flexible(symbols=None, symbols_path=None, task_label="close", update_stock_data=True, update_option_data=True,
+def update_stock_data_flexible(symbols=None, symbols_path=None, task_label="close", update_stock_data=True,
+                               update_option_data=True,
                                max_workers=8, update_today=True):
     if symbols is None and symbols_path is None:
         raise ValueError("Either symbols or symbols_path must be provided")
@@ -75,7 +88,9 @@ def update_stock_data_flexible(symbols=None, symbols_path=None, task_label="clos
     spd = StockPriceData()
     sod = StockOptionData()
     # always get data, and always
-    update_date = spd.get_nearest_prior_trade_day(datetime.now().strftime('%Y-%m-%d'), include_same=False) if update_today else datetime.now().strftime('%Y-%m-%d')
+    update_date = spd.get_nearest_prior_trade_day(datetime.now().strftime('%Y-%m-%d'),
+                                                  include_same=False) if update_today else datetime.now().strftime(
+        '%Y-%m-%d')
     if update_today and not is_today_trade_day_yf():
         logger.info("Today is NOT a trade date, no data will be updated.")
         return
@@ -84,7 +99,8 @@ def update_stock_data_flexible(symbols=None, symbols_path=None, task_label="clos
     if update_stock_data:
         spd.update_stock_data_from_yf(symbols, max_workers=8)
     if update_option_data:
-        sod.update_option_data_from_yf(symbols, revised_on_date=update_date, max_workers=max_workers, time_label=task_label)
+        sod.update_option_data_from_yf(symbols, revised_on_date=update_date, max_workers=max_workers,
+                                       time_label=task_label)
     logger.info("\n====================== Stock data updated  =======================\n\n")
 
 
@@ -131,3 +147,15 @@ def get_today_is_trade_day():
         logger.error(f"Failed to run get_today_is_trade_day after retries. Setting to false.")
         today_is_trade_day = False
     logger.info(f"result data: {today_is_trade_day}")
+
+
+def get_default_option_symbols_from_file():
+    option_symbols_path = get_resources_path("symbols", "option_symbols.txt")
+    option_symbols = get_symbols_from_file(option_symbols_path)
+    return option_symbols
+
+
+def get_default_stock_symbols_from_file():
+    symbols_path = get_resources_path("symbols", "symbols.txt")
+    symbols = get_symbols_from_file(symbols_path)
+    return symbols

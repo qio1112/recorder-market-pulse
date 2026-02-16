@@ -6,8 +6,8 @@ import com.yipeng.recorder.model.User;
 import com.yipeng.recorder.request.StockHistoryRequest;
 import com.yipeng.recorder.response.StockDailyHistoryForSymbolResponse;
 import com.yipeng.recorder.response.StockDailyHistoryFullResponse;
+import com.yipeng.recorder.service.MarketPulseApiService;
 import com.yipeng.recorder.service.StockDailyHistoryService;
-import com.yipeng.recorder.service.StockDataScriptService;
 import com.yipeng.recorder.service.UserService;
 
 import com.yipeng.recorder.utils.DateTimeUtils;
@@ -28,19 +28,22 @@ public class StockDataController {
     private static final Logger logger = LoggerFactory.getLogger(StockDataController.class);
 
     private final UserService userService;
-    private final StockDataScriptService stockDataScriptService;
+//    private final StockDataScriptService stockDataScriptService;
     private final StockDailyHistoryService stockDailyHistoryService;
+    private final MarketPulseApiService marketPulseApiService;
     private final DateTimeUtils dateTimeUtils;
 
     @Autowired
     public StockDataController(UserService userService,
-                               StockDataScriptService stockDataScriptService,
+//                               StockDataScriptService stockDataScriptService,
                                StockDailyHistoryService stockDailyHistoryService,
+                               MarketPulseApiService marketPulseApiService,
                                DateTimeUtils dateTimeUtils
                                ) {
         this.userService = userService;
-        this.stockDataScriptService = stockDataScriptService;
+//        this.stockDataScriptService = stockDataScriptService;
         this.stockDailyHistoryService = stockDailyHistoryService;
+        this.marketPulseApiService = marketPulseApiService;
         this.dateTimeUtils = dateTimeUtils;
     }
 
@@ -50,7 +53,8 @@ public class StockDataController {
         if (user == null || !user.isAdmin()) {
             throw new ForbiddenException();
         }
-        List<String> symbols = this.stockDataScriptService.formatSymbolList(body.getSymbols());
+        List<String> symbols = this.marketPulseApiService.formatSymbolList(body.getSymbols());
+        // get data from database, not from market_pulse api
         Map<String, List<StockDailyHistory>> rawData = this.stockDailyHistoryService.getHistoryBySymbols(symbols);
         List<String> invalidSymbols = new ArrayList<>(symbols);
         invalidSymbols.removeAll(rawData.keySet());
@@ -68,34 +72,25 @@ public class StockDataController {
             throw new ForbiddenException();
         }
 
-        Map<String, List<StockDailyHistory>> stockHistoryBySymbolFromApi = this.stockDataScriptService.getStockDailyHistoryFromScript(body.getSymbols(), user);
+        Map<String, List<StockDailyHistory>> stockHistoryBySymbolFromApi = this.marketPulseApiService.getStockDailyHistory(body.getSymbols());
         this.stockDailyHistoryService.updateStockDailyHistoryDatabase(stockHistoryBySymbolFromApi);
 
         return ResponseEntity.ok().body("Stock daily history data successfully updated for symbols: " + StringUtils.join(stockHistoryBySymbolFromApi.keySet(), ","));
     }
 
-    @PostMapping("/run-script/update_stock_data")
-    public ResponseEntity<String> runUpdateStockScript(@RequestBody Map<String, String> arguments) {
+    @GetMapping(value="/stock-data/update_stock_option_data")
+    public ResponseEntity<String> runUpdateStockOptionScript() {
         User user = userService.findUserFromAuthentication();
         if (user == null || !user.isAdmin()) {
             throw new ForbiddenException();
         }
-        String output = stockDataScriptService.runUpdateStockDataScript(arguments, user);
-
-        if (!output.startsWith("exitCode=0")) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Script execution failed" + ".\nOutput:\n" + output);
-        }
-
-        logger.info("Script update_stock_data execution completed successfully.");
-        String prefix = "result data:";
-        if (output.contains(prefix)) {
-            output = output.substring(output.indexOf(prefix) + prefix.length()).trim();
-        }
+        // for now use this API to update normal option data only, so request is null (default)
+        String output = marketPulseApiService.runUpdateStockOptionDataApi(null);
+        logger.info("Update stock option completed successfully. Output: " + output);
         return ResponseEntity.ok().body(output);
     }
 
-    @GetMapping(value="/run-script/update_stock_data/help")
+    @GetMapping(value="/stock-data/update_stock_data/help")
     public ResponseEntity<String> updateStockScriptHelp() {
         User user = userService.findUserFromAuthentication();
         if (user == null || !user.isAdmin()) {

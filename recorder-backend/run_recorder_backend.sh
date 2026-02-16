@@ -105,18 +105,13 @@ echo "Exporting env variables from $ENV_FILE:"
 #grep -v '^#' "$ENV_FILE" | xargs -n1 echo
 export $(grep -v '^#' "$ENV_FILE" | xargs)
 
-# make directories for market_pulse logs
-mkdir -p ${MARKET_PULSE_PATH_SERVER}/resources/logs
-touch ${MARKET_PULSE_PATH_SERVER}/resources/logs/log.txt
 
 # 2) Build the image if requested
 if [[ "$REBUILD_IMAGE" == "true" ]]; then
   echo "Building Docker image..."
   docker build \
-    --build-arg MARKET_PULSE_PATH=${MARKET_PULSE_PATH} \
     --build-arg BACKEND_APP_LOG_PATH=${BACKEND_APP_LOG_PATH} \
     --build-arg BACKEND_APP_FILE_PATH=${BACKEND_APP_FILE_PATH} \
-    --build-arg MARKET_PULSE_PATH_SERVER=${MARKET_PULSE_PATH_SERVER} \
     --build-arg APP_TIMEZONE=${APP_TIMEZONE} \
     -t recorder-backend:latest .
 else
@@ -138,13 +133,14 @@ fi
 if [[ "$RUN_DEV_SERVER" == "true" ]]; then
   # 4) Run the new container
   echo "Starting recorder-backend container..."
+  docker network inspect recorder-net >/dev/null 2>&1 || docker network create recorder-net
   docker run -d \
     --name recorder-backend \
     --restart unless-stopped \
     --env-file ../.env \
+    --network recorder-net \
     -v ${BACKEND_APP_LOG_PATH_SERVER}:${BACKEND_APP_LOG_PATH} \
     -v ${BACKEND_APP_FILE_PATH_SERVER}:${BACKEND_APP_FILE_PATH} \
-    -v ${MARKET_PULSE_PATH_SERVER}/resources:${MARKET_PULSE_PATH}/resources \
     -p 8080:8080 \
     recorder-backend:latest
 
