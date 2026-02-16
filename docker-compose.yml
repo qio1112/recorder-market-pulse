@@ -1,188 +1,56 @@
 services:
-  # Redis Service
-  redis:
-    image: redis:7.2-alpine
-    container_name: redis
-    ports:
-      - "${REDIS_PORT}:6379"
-    command: redis-server --appendonly yes --maxmemory ${REDIS_MAX_MEMORY} --maxmemory-policy allkeys-lru
-    volumes:
-      - redis_data:/data
+  qdrant:
+    image: qdrant/qdrant:latest
     restart: unless-stopped
-    networks:
-      - app-network
+    ports:
+      - "6333:6333"   # REST
+      - "6334:6334"   # gRPC
+    volumes:
+      - ${MARKET_PULSE_RESOURCE_PATH_SERVER}/qdrant:/qdrant/storage
+
+  market-pulse:
+    build:
+      context: ./market_pulse
+      dockerfile: Dockerfile
+    image: yipeng6257/market-pulse-api:latest
+    container_name: market-pulse-api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${MARKET_PULSE_API_PORT:-8000}:8000"
+    volumes:
+      - ${MARKET_PULSE_RESOURCE_PATH_SERVER}:/app/market_pulse/resources
+    depends_on:
+      qdrant:
+        condition: service_started
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://localhost:8000/health').read(); sys.exit(0)"]
+      interval: 15s
       timeout: 5s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 20s
 
-  # Data Processor Service
-  data-processor:
-    build:
-      context: ./data-processor
-      dockerfile: Dockerfile
-    container_name: data-processor
-    ports:
-      - "8082:8082"
-    environment:
-      # Database configuration
-      DB_USER: ${DB_USER}
-      DB_PASS: ${DB_PASS}
-      
-      # Redis configuration
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      REDIS_DATABASE: ${REDIS_DATABASE}
-      
-      # Stock API configuration
-      STOCK_API_BASE_URL: http://stock-api-service:8081
-      STOCK_API_WEBSOCKET_URL: ws://stock-api-service:8081/ws
-      
-      # Application specific settings
-      SERVER_PORT: 8082
-      LOGGING_LEVEL_COM_YIPENG_RECORDER_DATAPROCESSOR: INFO
-    volumes:
-      - ./data-processor/logs:/app/logs
-    restart: unless-stopped
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      stock-api-service:
-        condition: service_healthy
-    networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  # Stock API Service (starts first)
-  stock-api-service:
-    build:
-      context: ./stock-api-service
-      dockerfile: Dockerfile
-    container_name: stock-api-service
-    ports:
-      - "8081:8081"
-    environment:
-      # Database configuration (optional - service works without DB)
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/stock_data?useSSL=false&serverTimezone=UTC
-      SPRING_DATASOURCE_USERNAME: ${DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASS}
-      SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
-      
-      # Redis configuration (using .env values)
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      REDIS_DATABASE: ${REDIS_DATABASE}
-      
-      # Application specific settings
-      SERVER_PORT: 8081
-      LOGGING_LEVEL_COM_YIPENG_STOCKAPI: INFO
-    volumes:
-      - ./stock-api-service/logs:/app/logs
-    restart: unless-stopped
-    depends_on:
-      mysql:
-        condition: service_healthy
-    networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/api/stocks/market-summary"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  # Recorder Backend (starts after stock-api-service)
   recorder-backend:
     build:
       context: ./recorder-backend
       dockerfile: Dockerfile
+      args:
+        APP_TIMEZONE: ${APP_TIMEZONE}
+        BACKEND_APP_LOG_PATH: ${BACKEND_APP_LOG_PATH}
+        BACKEND_APP_FILE_PATH: ${BACKEND_APP_FILE_PATH}
+    image: yipeng6257/recorder-backend:latest
+    container_name: recorder-backend
+    restart: unless-stopped
+    env_file: .env
     ports:
       - "8080:8080"
-    environment:
-      # MySQL connection (using .env values)
-      DB_HOST: jdbc:mysql://mysql:3306/recorder?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
-      DB_USER: ${DB_USER}
-      DB_PASS: ${DB_PASS}
-
-      # Email configuration (using .env values)
-      MAIL_HOST: ${MAIL_HOST}
-      MAIL_PORT: ${MAIL_PORT}
-      MAIL_USER: ${MAIL_USER}
-      MAIL_PASS: ${MAIL_PASS}
-      MAIL_PROTOCOL: ${MAIL_PROTOCOL}
-      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH}
-      MAIL_SMTP_STARTTLS_ENABLE: ${MAIL_SMTP_STARTTLS_ENABLE}
-
-      # Admin configuration (using .env values)
-      ADMIN_USERNAME: ${ADMIN_USERNAME}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
-
-      # JWT configuration (using .env values)
-      JWT_SECRET: ${JWT_SECRET}
-
-      # Redis configuration (using .env values)
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      REDIS_DATABASE: ${REDIS_DATABASE}
-
-      # These pick up the Dockerfile's ENV defaults if you don't override
-      APP_LOG_PATH: /app/logs/application.log
-      APP_FILE_PATH: /app/uploaded_files
     volumes:
-      - ${BACKEND_APP_LOG_PATH_SERVER}:/app/logs
-      - ${BACKEND_APP_FILE_PATH_SERVER}:/app/uploaded_files
-    restart: unless-stopped
+      - ${BACKEND_APP_LOG_PATH_SERVER}:${BACKEND_APP_LOG_PATH}
+      - ${BACKEND_APP_FILE_PATH_SERVER}:${BACKEND_APP_FILE_PATH}
     depends_on:
-      mysql:
+      market-pulse:
         condition: service_healthy
-      stock-api-service:
-        condition: service_healthy
-    networks:
-      - app-network
-
-  # Shared MySQL database (using .env.prod configuration)
-  mysql:
-    image: mysql:8.0
-    container_name: recorder-mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASS}
-      MYSQL_DATABASE: recorder
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASS}
-      # Additional database for stock data
-      MYSQL_MULTIPLE_DATABASES: recorder,stock_data
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./mysql/init:/docker-entrypoint-initdb.d
-    restart: unless-stopped
-    networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
-volumes:
-  mysql_data:
-  redis_data:
 
 networks:
-  app-network:
+  default:
     driver: bridge
