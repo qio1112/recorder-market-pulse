@@ -1,7 +1,5 @@
 package com.yipeng.recorder.service;
 
-import java.util.*;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -15,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -26,6 +25,9 @@ import org.springframework.web.client.RestTemplate;
 
 import com.yipeng.recorder.request.MarketPulseUpdateStockDataRequest;
 
+import java.time.Duration;
+import java.util.*;
+
 @Service
 public class MarketPulseApiService {
 
@@ -34,13 +36,18 @@ public class MarketPulseApiService {
     private final SendEmailService sendEmailService;
 
     private final RestTemplate restTemplate;
+    private final RestTemplateBuilder restTemplateBuilder;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${market.pulse.url}")
     private String marketPulseBaseUrl;
 
     @Autowired
-    public MarketPulseApiService(RestTemplate restTemplate, SendEmailService sendEmailService) {
+    public MarketPulseApiService(RestTemplate restTemplate,
+                                 RestTemplateBuilder restTemplateBuilder,
+                                 SendEmailService sendEmailService) {
         this.restTemplate = restTemplate;
+        this.restTemplateBuilder = restTemplateBuilder;
         this.sendEmailService = sendEmailService;
     }
 
@@ -54,11 +61,25 @@ public class MarketPulseApiService {
         MarketPulseUpdateStockDataRequest payload = request == null
                 ? new MarketPulseUpdateStockDataRequest()
                 : request;
-        ResponseEntity<String> responseEntity = restTemplate.postForEntity(url, buildJsonRequest(payload), String.class);
+        logger.info("Started updating stock option data.");
+        // Use a longer timeout for this potentially slow operation
+        RestTemplate longTimeoutRestTemplate = buildRestTemplateWithTimeouts(Duration.ofSeconds(10), Duration.ofMinutes(5));
+        ResponseEntity<String> responseEntity = longTimeoutRestTemplate.postForEntity(url, buildJsonRequest(payload), String.class);
         if (responseEntity.getStatusCode().isError()) {
             throw new RuntimeException("Failed to runUpdateStockDataApi. Status code: " + responseEntity.getStatusCode().value());
         }
-        return responseEntity.getBody();
+        logger.info("Finished updating stock option data.");
+        String body = responseEntity.getBody();
+        if (body == null) {
+            return null;
+        }
+        try {
+            // Response may be a JSON-encoded string (e.g., "\"line1\\nline2\""), so unwrap it
+            return objectMapper.readValue(body, String.class);
+        } catch (JsonProcessingException e) {
+            logger.warn("Failed to unwrap JSON string response, returning raw body");
+            return body;
+        }
     }
 
     public Map<String, List<StockDailyHistory>> getStockDailyHistory(List<String> symbolsList) {
@@ -142,5 +163,12 @@ public class MarketPulseApiService {
                 .map(sym -> sym.trim().toUpperCase(Locale.ROOT))
                 .distinct()
                 .toList();
+    }
+
+    private RestTemplate buildRestTemplateWithTimeouts(Duration connectTimeout, Duration readTimeout) {
+        return restTemplateBuilder
+                .setConnectTimeout(connectTimeout)
+                .setReadTimeout(readTimeout)
+                .build();
     }
 }

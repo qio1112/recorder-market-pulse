@@ -2,6 +2,7 @@ import json
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from main.data_source.data_source import (

@@ -1,6 +1,10 @@
 # Use an official Python runtime as a parent image
 FROM python:3.12-slim
 
+ARG APP_TIMEZONE
+
+ENV TZ=${APP_TIMEZONE}
+
 # Prevent Python from writing pyc files and buffer logs
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

@@ -12,6 +12,8 @@ services:
     build:
       context: ./market_pulse
       dockerfile: Dockerfile
+      args:
+        APP_TIMEZONE: ${APP_TIMEZONE}
     image: yipeng6257/market-pulse-api:latest
     container_name: market-pulse-api
     restart: unless-stopped

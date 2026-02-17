@@ -52,6 +52,8 @@ def update_stock_data(update_previous_trade_date=False,
         logger.info(f"Revised date: {today}")
     response += f"today: {today}\n"
     try:
+        logger.info(f"update_previous_trade_date: {update_previous_trade_date}")
+        logger.info(f"now: {now}, market_close_time: {market_close_time}, market_noon_time: {market_noon_time}")
         if now > market_close_time or update_previous_trade_date:
             logger.info("\n\n\n====================== Updating stock data... =======================\n\n")
             # spd.update_stock_data_from_yf(symbols, max_workers=8)
