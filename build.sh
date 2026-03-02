@@ -5,20 +5,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 ENV_FILE=".env"
-BUILD_BACKEND=true
-BUILD_FRONTEND=false
 FRONTEND_PATH="./recorder-frontend"
 DOCKER_PUSH=false
-REBUILD_IMAGES=true
+RUN_DOCKER_COMPOSE=true
+
+# Build targets: 1=frontend, 2=backend, 3=market-pulse
+BUILD_FRONTEND=true
+BUILD_BACKEND=true
+BUILD_MARKET_PULSE=true
+SKIP_BUILD=false
 
 usage() {
   cat <<'EOF'
 Usage: ./build.sh [options]
   --env-file <path>       Path to .env file (default: .env)
-  --skip-backend-build    Skip building the recorder-backend JAR
-  --build-frontend [path] Build frontend and copy dist to backend static (default path: ./recorder-frontend)
+  --build <list>          Comma-separated build targets: 1=frontend, 2=backend, 3=market-pulse (default: 1,2,3)
+  --skip-build            Skip all build steps (frontend/backend/images) and just run docker compose
   --docker-push           After build, push images defined in docker-compose.yml
-  --no-rebuild-images     Skip docker compose image rebuild (uses existing images)
+  --run-docker-compose <true|false>  Whether to run docker compose up (default: true)
   --help                  Show this help
 EOF
 }
@@ -29,26 +33,32 @@ while [[ $# -gt 0 ]]; do
       ENV_FILE="$2"
       shift 2
       ;;
-    --skip-backend-build)
+    --build)
+      BUILD_FRONTEND=false
       BUILD_BACKEND=false
-      shift
-      ;;
-    --build-frontend)
-      BUILD_FRONTEND=true
-      if [[ -n "${2-}" && "${2:0:1}" != "-" ]]; then
-        FRONTEND_PATH="$2"
-        shift 2
-      else
-        shift
-      fi
+      BUILD_MARKET_PULSE=false
+      IFS=',' read -r -a targets <<< "$2"
+      for t in "${targets[@]}"; do
+        case "$t" in
+          1) BUILD_FRONTEND=true ;;
+          2) BUILD_BACKEND=true ;;
+          3) BUILD_MARKET_PULSE=true ;;
+          *) echo "Unknown build target: $t (use 1,2,3)" >&2; exit 1 ;;
+        esac
+      done
+      shift 2
       ;;
     --docker-push)
       DOCKER_PUSH=true
       shift
       ;;
-    --no-rebuild-images)
-      REBUILD_IMAGES=false
+    --skip-build)
+      SKIP_BUILD=true
       shift
+      ;;
+    --run-docker-compose)
+      RUN_DOCKER_COMPOSE="$2"
+      shift 2
       ;;
     --help|-h)
       usage
@@ -81,8 +91,12 @@ mkdir -p "${MARKET_PULSE_RESOURCE_PATH_SERVER}/logs" \
          "${BACKEND_APP_FILE_PATH_SERVER}"
 touch "${MARKET_PULSE_RESOURCE_PATH_SERVER}/logs/log.txt"
 
-if [[ "$BUILD_FRONTEND" == "true" ]]; then
-  echo "Building frontend from ${FRONTEND_PATH}..."
+if [[ "$SKIP_BUILD" == "true" ]]; then
+  echo "--skip-build set; skipping frontend/backend builds and image rebuilds."
+else
+  if [[ "$BUILD_FRONTEND" == "true" ]]; then
+    echo "Building frontend from ${FRONTEND_PATH}..."
+  fi
   if [[ ! -d "$FRONTEND_PATH" ]]; then
     echo "Error: frontend path '$FRONTEND_PATH' does not exist." >&2
     exit 1
@@ -103,7 +117,7 @@ if [[ "$BUILD_FRONTEND" == "true" ]]; then
   cp -R "$DIST_DIR"/. "$STATIC_DIR"/
 fi
 
-if [[ "$BUILD_BACKEND" == "true" ]]; then
+if [[ "$SKIP_BUILD" != "true" && "$BUILD_BACKEND" == "true" ]]; then
   echo "Building recorder-backend JAR..."
   pushd recorder-backend >/dev/null
   mvn clean package -DskipTests
@@ -112,10 +126,24 @@ else
   echo "Skipping backend JAR build."
 fi
 
-if [[ "$REBUILD_IMAGES" == "true" ]]; then
-  echo "Building Docker images via docker compose..."
-  docker compose build
+services_to_build=()
+if [[ "$SKIP_BUILD" != "true" && "$BUILD_BACKEND" == "true" ]]; then
+  services_to_build+=("recorder-backend")
+fi
+if [[ "$SKIP_BUILD" != "true" && "$BUILD_MARKET_PULSE" == "true" ]]; then
+  services_to_build+=("market-pulse")
+fi
 
+if [[ "$SKIP_BUILD" != "true" && "${#services_to_build[@]}" -gt 0 ]]; then
+  echo "Building Docker images via docker compose for: ${services_to_build[*]} ..."
+  docker compose build "${services_to_build[@]}"
+  echo "Pruning dangling images..."
+  docker image prune -f
+elif [[ "$SKIP_BUILD" != "true" ]]; then
+  echo "No Docker images selected for build (targets 2 or 3)."
+fi
+
+if [[ "$RUN_DOCKER_COMPOSE" == "true" ]]; then
   echo "Removing any existing containers with fixed names..."
   docker rm -f recorder-backend 2>/dev/null || true
   docker rm -f market-pulse-api 2>/dev/null || true
@@ -123,14 +151,21 @@ if [[ "$REBUILD_IMAGES" == "true" ]]; then
   echo "Starting stack with docker compose..."
   docker compose up -d --remove-orphans
 else
-  echo "Skipping image rebuild and container cleanup; starting existing containers..."
-  docker compose up -d
+  echo "RUN_DOCKER_COMPOSE=false; skipping docker compose up."
 fi
 
 if [[ "$DOCKER_PUSH" == "true" ]]; then
-  echo "Pushing Docker images..."
-  docker compose push market-pulse recorder-backend
+  if [[ "${#services_to_build[@]}" -gt 0 ]]; then
+    echo "Pushing Docker images: ${services_to_build[*]} ..."
+    docker compose push "${services_to_build[@]}"
+  else
+    echo "No services to push."
+  fi
 fi
 
-echo "Current service status:"
-docker compose ps
+if [[ "$RUN_DOCKER_COMPOSE" == "true" ]]; then
+  echo "Current service status:"
+  docker compose ps
+else
+  echo "Skipped docker compose up; not showing service status."
+fi

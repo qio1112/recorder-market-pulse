@@ -98,4 +98,7 @@ public interface RecordRepository extends JpaRepository<Record, Long> {
             @Param("endDate") String endDate,
             @Param("userId") Long userId
     );
+
+    @Query("SELECT r.id FROM Record r")
+    List<Long> findAllRecordIds();
 }

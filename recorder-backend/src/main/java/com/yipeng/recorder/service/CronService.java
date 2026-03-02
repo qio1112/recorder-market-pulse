@@ -46,7 +46,7 @@ public class CronService {
 
     @Scheduled(cron = "0 30 13 * * *")
     public void runUpdateStockTask1330() {
-        updateStockOptionDataJob("13:30");
+        updateStockOptionDataJob("13:30TESTTEST");
     }
 
     @Scheduled(cron = "0 30 16 * * *")

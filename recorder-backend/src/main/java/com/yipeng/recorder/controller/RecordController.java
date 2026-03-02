@@ -10,11 +10,13 @@ import com.yipeng.recorder.model.Record;
 import com.yipeng.recorder.request.DateRangeRequest;
 import com.yipeng.recorder.request.ListRecordsRequest;
 import com.yipeng.recorder.request.NewRecordRequest;
+import com.yipeng.recorder.request.QdrantQueryRequest;
 import com.yipeng.recorder.request.UpdateRecordRequest;
 import com.yipeng.recorder.response.RecordDailyCountDto;
 import com.yipeng.recorder.service.LabelService;
 import com.yipeng.recorder.service.RecFileService;
 import com.yipeng.recorder.service.RecordService;
+import com.yipeng.recorder.service.QdrantEmbeddingService;
 import com.yipeng.recorder.service.UserService;
 import com.yipeng.recorder.utils.AlertType;
 import com.yipeng.recorder.utils.DateTimeUtils;
@@ -63,17 +65,21 @@ public class RecordController {
 
     private final DateTimeUtils dateTimeUtils;
 
+    private final QdrantEmbeddingService qdrantEmbeddingService;
+
     @Autowired
     public RecordController(UserService userService,
                             RecordService recordService,
                             LabelService labelService,
                             RecFileService recFileService,
-                            DateTimeUtils dateTimeUtils) {
+                            DateTimeUtils dateTimeUtils,
+                            QdrantEmbeddingService qdrantEmbeddingService) {
         this.userService = userService;
         this.recordService = recordService;
         this.labelService = labelService;
         this.recFileService = recFileService;
         this.dateTimeUtils = dateTimeUtils;
+        this.qdrantEmbeddingService = qdrantEmbeddingService;
     }
 
     @PostMapping(value = "/create-record", consumes = "multipart/form-data")
@@ -97,6 +103,9 @@ public class RecordController {
         // Use the service to handle the creation, including labels and recFiles
         newRecord = recordService.createRecord(newRecord, imageFiles, regularFiles, newRecordRequest.getLabels(), user, alertSchedule,
                 newRecordRequest.isPublic(), newRecordRequest.getMetadata());
+
+        // update qdrant embedding
+        qdrantEmbeddingService.upsertRecordAsync(newRecord, user);
         return ResponseEntity.status(HttpStatus.CREATED).body(newRecord);
     }
 
@@ -183,6 +192,8 @@ public class RecordController {
         record = recordService.updateRecord(record, deleteFileIds, imageFiles, regularFiles, updateRecordRequest.getLabels(), user, alertSchedule,
                 updateRecordRequest.isCancelAlert(), updateRecordRequest.getMetadata());
 
+        // update qdrant embedding
+        qdrantEmbeddingService.upsertRecordAsync(record, user);
         return ResponseEntity.ok().body(record);
     }
 
@@ -227,6 +238,8 @@ public class RecordController {
             throw new ForbiddenException();
         }
         recordService.deleteRecord(record);
+        // delete record from qdrant embedding if exists
+        qdrantEmbeddingService.deleteRecordIfExistsAsync(record);
         return ResponseEntity.ok().body("Deleted record");
     }
 
@@ -249,7 +262,7 @@ public class RecordController {
         return ResponseEntity.ok().body(recordPage);
     }
 
-    @PostMapping(value="/recordCountByDateLabelInRange", consumes="application/json")
+    @PostMapping(value="/record-count-by-date-label-in-range", consumes="application/json")
     public ResponseEntity<List<RecordDailyCountDto>> getRecordCountByDateLabelRange(@RequestBody DateRangeRequest dateRangeRequest) {
         User user = userService.findUserFromAuthentication();
         if (user == null) {
@@ -262,5 +275,57 @@ public class RecordController {
                 dateRangeRequest.getEndDate(), user);
 
         return ResponseEntity.ok().body(dailyCounts);
+    }
+
+    @PostMapping(value = "/get-records-by-description", consumes = "application/json")
+    public ResponseEntity<List<Record>> filterRecordsByQdrant(@RequestBody QdrantQueryRequest queryRequest) {
+        User user = userService.findUserFromAuthentication();
+        if (user == null) {
+            throw new ForbiddenException();
+        }
+        // default threshold 0.6, limit 20
+        double threshold = queryRequest.getSimilarityThreshold() != null ? queryRequest.getSimilarityThreshold() : 0.45d;
+        int limit = queryRequest.getLimit() != null ? queryRequest.getLimit() : 20;
+        limit = Math.min(limit, 30);
+        // userID from the frontend request will be empty
+        queryRequest.setUserId(String.valueOf(user.getId()));
+        var results = qdrantEmbeddingService.querySimilarRecords(
+                queryRequest.getQueryText(),
+                user,
+                threshold,
+                limit
+        );
+
+        // Filter and sort by similarity descending
+        var filtered = results.stream()
+                .filter(r -> r.getBestScore() != null && r.getBestScore() >= threshold)
+                .sorted((a, b) -> Double.compare(
+                        b.getBestScore() != null ? b.getBestScore() : 0.0,
+                        a.getBestScore() != null ? a.getBestScore() : 0.0))
+                .toList();
+
+        if (filtered.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        // Load records by id, respect user visibility
+        List<Record> records = filtered.stream()
+                .map(r -> {
+                    try {
+                        Long id = Long.parseLong(r.getRecordId());
+                        Record record = recordService.getRecordById(id);
+                        if (record != null && userService.userCanSeeRecord(user, record)) {
+                            return record;
+                        }
+                    } catch (NumberFormatException ignored) {
+                        // skip invalid id
+                    }
+                    return null;
+                })
+                .filter(r -> r != null)
+                .limit(limit)
+                .toList();
+
+        return ResponseEntity.ok(records);
     }
 }

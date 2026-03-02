@@ -2,6 +2,7 @@ package com.yipeng.recorder.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
+import org.apache.commons.lang3.StringUtils;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -104,6 +105,19 @@ public class Record {
         StringBuffer sb = new StringBuffer();
         sb.append("Alert sending to ").append(createdBy.getUsername()).append(": \n\n");
         sb.append(content);
+        return sb.toString();
+    }
+
+    public String getEmbeddingString() {
+        StringBuffer sb = new StringBuffer();
+        sb.append(this.title);
+        sb.append("\n");
+        List<String> labelStrings = this.labels.stream()
+                .map(Label::getLabelName)
+                .toList();
+        sb.append(StringUtils.join(labelStrings));
+        sb.append("\n");
+        sb.append(this.content);
         return sb.toString();
     }
 

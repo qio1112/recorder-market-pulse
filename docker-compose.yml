@@ -14,7 +14,7 @@ services:
       dockerfile: Dockerfile
       args:
         APP_TIMEZONE: ${APP_TIMEZONE}
-    image: yipeng6257/market-pulse-api:latest
+    image: yipeng6257/market-pulse-api:v3
     container_name: market-pulse-api
     restart: unless-stopped
     env_file: .env
@@ -40,7 +40,7 @@ services:
         APP_TIMEZONE: ${APP_TIMEZONE}
         BACKEND_APP_LOG_PATH: ${BACKEND_APP_LOG_PATH}
         BACKEND_APP_FILE_PATH: ${BACKEND_APP_FILE_PATH}
-    image: yipeng6257/recorder-backend:latest
+    image: yipeng6257/recorder-backend:v3
     container_name: recorder-backend
     restart: unless-stopped
     env_file: .env

@@ -64,7 +64,8 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:8081",
                 "http://localhost:8080",
-                "https://192.168.1.162"
+                "https://192.168.1.162",
+                "https://bigbigbun.com"
         ));
 
         configuration.setAllowedMethods(Arrays.asList(

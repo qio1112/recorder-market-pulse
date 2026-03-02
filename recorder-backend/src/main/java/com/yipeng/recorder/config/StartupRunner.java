@@ -1,7 +1,9 @@
 package com.yipeng.recorder.config;
 
 import com.yipeng.recorder.model.*;
+import com.yipeng.recorder.model.Record;
 import com.yipeng.recorder.repository.*;
+import com.yipeng.recorder.service.QdrantEmbeddingService;
 import com.yipeng.recorder.service.ScheduleAlertService;
 import com.yipeng.recorder.utils.LabelType;
 import com.yipeng.recorder.utils.RoleType;
@@ -27,6 +29,7 @@ public class StartupRunner implements CommandLineRunner {
     private final RecordRepository recordRepository;
     private final AlertScheduleRepository alertScheduleRepository;
     private final ScheduleAlertService scheduleAlertService;
+    private final QdrantEmbeddingService qdrantEmbeddingService;
 
     @Value("${admin.username}")
     private String adminUsername;
@@ -34,12 +37,15 @@ public class StartupRunner implements CommandLineRunner {
     private String adminPassword;
     @Value("${admin.email}")
     private String adminEmail;
+    @Value("${qdrant.upsert-on-startup:false}")
+    private boolean runQdrantUpsertOnStartup;
 
     @Autowired
     public StartupRunner(UserRepository userRepository, RoleRepository roleRepository,
                          PasswordEncoder passwordEncoder, LabelRepository labelRepository,
                          RecordRepository recordRepository, AlertScheduleRepository alertScheduleRepository,
-                         ScheduleAlertService scheduleAlertService) {
+                         ScheduleAlertService scheduleAlertService,
+                         QdrantEmbeddingService qdrantEmbeddingService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
@@ -47,6 +53,7 @@ public class StartupRunner implements CommandLineRunner {
         this.recordRepository = recordRepository;
         this.alertScheduleRepository = alertScheduleRepository;
         this.scheduleAlertService = scheduleAlertService;
+        this.qdrantEmbeddingService = qdrantEmbeddingService;
     }
 
     @Override
@@ -55,6 +62,11 @@ public class StartupRunner implements CommandLineRunner {
         createAdminUser();
         createDefaultLabels();
         scheduleExistingAlerts();
+        if (runQdrantUpsertOnStartup) {
+            upsertExistingRecordsToQdrant();
+        } else {
+            logger.info("Skipping Qdrant upsert on startup (qdrant.upsert-on-startup=false).");
+        }
         logger.info("Completed application startup runner...");
 
     }
@@ -115,5 +127,38 @@ public class StartupRunner implements CommandLineRunner {
                 }
             }
         }
+    }
+
+    private void upsertExistingRecordsToQdrant() {
+        List<Long> ids = recordRepository.findAllRecordIds();
+        if (ids == null || ids.isEmpty()) {
+            logger.info("No existing records to upsert into Qdrant.");
+            return;
+        }
+        logger.info("Checking {} records for Qdrant upsert...", ids.size());
+        for (Long id : ids) {
+            if (id == null) {
+                continue;
+            }
+            try {
+                boolean exists = qdrantEmbeddingService.recordExists(id.toString());
+                if (exists) {
+                    logger.info("Record {} already exist in qdrant.", id);
+                    continue;
+                }
+                Record record = recordRepository.findById(id).orElse(null);
+                if (record == null) {
+                    continue;
+                }
+                User owner = record.getCreatedBy();
+                if (owner == null) {
+                    continue;
+                }
+                qdrantEmbeddingService.upsertRecordSync(record, owner);
+            } catch (Exception e) {
+                logger.error("Failed to upsert record {} into Qdrant: {}", id, e.getMessage(), e);
+            }
+        }
+        logger.info("Completed Qdrant upsert check for existing records.");
     }
 }
