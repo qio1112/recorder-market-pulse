@@ -96,7 +96,7 @@ export async function getRecordCountByDateLabelRange(startDate, endDate) {
       endDate: endDate
     }
 
-    const response = await http.post('/records/recordCountByDateLabelInRange', formData);
+    const response = await http.post('/records/record-count-by-date-label-in-range', formData);
     return response.data;
   } catch (error) {
     console.log(error);
@@ -104,6 +104,36 @@ export async function getRecordCountByDateLabelRange(startDate, endDate) {
   }
 }
 
+export async function getTextQueryRecords(listDescribedRecordRequest) {
+  try {
+    const body = listDescribedRecordRequest.toApi();
+    const response = await http.post("/records/get-records-by-description", body);
+    return response.data;
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+}
+
+export class ListDescribedRecordRequest {
+  constructor({
+    user_id = null,
+    query_text = "",
+    limit = 20
+  } = {}) {
+    this.user_id = user_id;
+    this.query_text = query_text;
+    this.limit = limit;
+  }
+
+  toApi() {
+    return {
+      user_id: this.user_id,
+      query_text: this.query_text,
+      limit: this.limit
+    }
+  }
+}
 
 export class ListRecordRequest {
   constructor({

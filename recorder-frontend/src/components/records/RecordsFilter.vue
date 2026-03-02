@@ -85,6 +85,19 @@
       <button type="submit" class="primary">Apply filters</button>
       <button type="button" class="secondary" @click="resetForm">Reset</button>
     </div>
+
+    <div class="query-row">
+      <label for="queryText">Query by description</label>
+      <div class="query-input-row">
+        <input
+          id="queryText"
+          v-model.trim="queryText"
+          type="text"
+          placeholder="Describe what you're looking for"
+        />
+        <button type="button" class="primary" :disabled="!queryText" @click="handleQuerySearch">Search</button>
+      </div>
+    </div>
   </form>
 </template>
 
@@ -92,11 +105,15 @@
 import { ListRecordRequest } from '../../api/RecordService.js'
 
 export default {
-  emits: ['submit'],
+  emits: ['submit', 'query'],
   props: {
     initialFilters: {
       type: Object,
       default: null
+    },
+    initialQueryText: {
+      type: String,
+      default: ''
     }
   },
   data() {
@@ -104,7 +121,8 @@ export default {
     return {
       form: this.mapRequestToForm(defaults),
       newLabel: '',
-      newExcludeLabel: ''
+      newExcludeLabel: '',
+      queryText: this.initialQueryText || ''
     }
   },
   watch: {
@@ -114,6 +132,9 @@ export default {
         const request = new ListRecordRequest(newVal || {});
         this.form = this.mapRequestToForm(request);
       }
+    },
+    initialQueryText(newVal) {
+      this.queryText = newVal || '';
     }
   },
   methods: {
@@ -159,6 +180,9 @@ export default {
         labels: [...this.form.labels]
       });
       this.$emit('submit', request);
+    },
+    handleQuerySearch() {
+      this.$emit('query', this.queryText || '');
     }
   }
 }
@@ -257,6 +281,33 @@ select {
 .actions {
   display: flex;
   gap: 0.6rem;
+}
+
+.query-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.query-input-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.query-input-row input {
+  flex: 1;
+}
+
+.query-input-row button {
+  white-space: nowrap;
+}
+
+.query-input-row button:disabled {
+  background: #e5e7eb;
+  color: #9aa5b1;
+  border-color: #d1d5db;
+  cursor: not-allowed;
 }
 
 .primary,

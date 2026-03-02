@@ -18,7 +18,7 @@
 
 <script>
 import RecordPreview from './RecordPreview.vue'
-import { getRecords, ListRecordRequest } from '../../api/RecordService.js'
+import { getRecords, getTextQueryRecords, ListRecordRequest, ListDescribedRecordRequest } from '../../api/RecordService.js'
 
 export default {
   name: 'RecordsList',
@@ -27,6 +27,10 @@ export default {
     filters: {
       type: Object,
       default: null
+    },
+    queryText: {
+      type: String,
+      default: ''
     }
   },
   data() {
@@ -46,6 +50,10 @@ export default {
         this.currentPage = 0;
         this.fetchRecords();
       }
+    },
+    queryText() {
+      this.currentPage = 0;
+      this.fetchRecords();
     }
   },
   mounted() {
@@ -54,18 +62,29 @@ export default {
   methods: {
     async fetchRecords() {
       this.isLoading = true;
-      const request = new ListRecordRequest({
-        ...(this.filters || {}),
-        page: this.currentPage
-      });
-      this.pageSize = request.pageSize;
-      const data = await getRecords(request);
-      this.records = data?.content || [];
-      // console.log(this.records);
-      const pageInfo = data?.page || {};
-      this.currentPage = pageInfo.number ?? 0;
-      this.totalPages = pageInfo.totalPages ?? 0;
-      this.hasNext = (this.currentPage + 1) !== this.totalPages;
+      if (this.queryText) {
+        const request = new ListDescribedRecordRequest({
+          query_text: this.queryText,
+          limit: 20
+        });
+        const data = await getTextQueryRecords(request);
+        this.records = data || [];
+        this.currentPage = 0;
+        this.totalPages = 1;
+        this.hasNext = false;
+      } else {
+        const request = new ListRecordRequest({
+          ...(this.filters || {}),
+          page: this.currentPage
+        });
+        this.pageSize = request.pageSize;
+        const data = await getRecords(request);
+        this.records = data?.content || [];
+        const pageInfo = data?.page || {};
+        this.currentPage = pageInfo.number ?? 0;
+        this.totalPages = pageInfo.totalPages ?? 0;
+        this.hasNext = (this.currentPage + 1) !== this.totalPages;
+      }
       this.isLoading = false;
     },
     async changePage(delta) {

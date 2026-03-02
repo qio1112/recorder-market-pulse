@@ -3,9 +3,19 @@
     <records-filter
       :initial-filters="filtersFromRoute"
       :key="filterKey"
+      :initial-query-text="activeQueryText"
       @submit="updateRecordList"
+      @query="handleQuerySearch"
     ></records-filter>
-    <records-list :filters="filtersFromRoute"></records-list>
+    <records-list
+      v-if="!activeQueryText"
+      :filters="filtersFromRoute"
+    ></records-list>
+    <records-list
+      v-else
+      :filters="filtersFromRoute"
+      :query-text="activeQueryText"
+    ></records-list>
   </div>
 </template>
 
@@ -57,6 +67,10 @@ export default {
     },
     filterKey() {
       return JSON.stringify(this.$route.query || {});
+    },
+    activeQueryText() {
+      const q = this.$route.query || {};
+      return q['query-text'] || '';
     }
   },
   methods: {
@@ -76,7 +90,19 @@ export default {
     },
     async updateRecordList(request) {
       const query = this.buildQueryFromRequest(request);
+      // Clear query-text when doing standard filter search
+      query['query-text'] = undefined;
       await this.$router.replace({ query });
+    },
+    async handleQuerySearch(queryText) {
+      const baseQuery = this.$route.query || {};
+      if (!queryText || !queryText.trim()) {
+        this.$toast && this.$toast.error ? this.$toast.error('Query text cannot be empty') : alert('Query text cannot be empty');
+        return;
+      }
+      const trimmed = queryText.trim().slice(0, 200);
+      const newQuery = { ...baseQuery, 'query-text': trimmed || undefined };
+      await this.$router.replace({ query: newQuery });
     }
   }
 }
