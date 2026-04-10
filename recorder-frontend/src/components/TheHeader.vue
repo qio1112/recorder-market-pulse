@@ -6,6 +6,7 @@
       <li><router-link to="/calendar">Calendar</router-link></li>
       <li><router-link to="/add-record">Add Record</router-link></li>
       <li><router-link to="/portfolio">Portfolio</router-link></li>
+      <li><router-link to="/option-return">Option Return</router-link></li>
       <li><router-link to="/account">Account</router-link></li>
       <li><button type="button" class="nav-action" @click="logoutUser">Logout</button></li>
     </ul>

@@ -6,6 +6,7 @@ import UserAccountInfo from '../views/UserAccountInfo.vue'
 import AddNewRecord from '../views/AddNewRecord.vue'
 import EditRecord from '../views/EditRecord.vue'
 import PortfolioPage from '../views/PortfolioPage.vue'
+import OptionReturn from '../views/OptionReturn.vue'
 import PageNotFound from '../views/PageNotFound.vue'
 import CalendarPage from '../views/CalendarPage.vue'
 import store from '../store/index.js'
@@ -26,6 +27,7 @@ const router = createRouter({
     { path: '/add-record', component: AddNewRecord, meta: { requiresAuth: true } },
     { path: '/edit-record/:recordID', component: EditRecord, props: true, meta: { requiresAuth: true } },
     { path: '/portfolio', component: PortfolioPage, meta: { requiresAuth: true } },
+    { path: '/option-return', component: OptionReturn, meta: { requiresAuth: true } },
     { path: '/account', component: UserAccountInfo, meta: { requiresAuth: true } },
     { path: '/login', component: LoginPage, meta: { requiresUnauth: true }},
     { path: '/signup', component: null, meta: { requiresUnauth: true }},
