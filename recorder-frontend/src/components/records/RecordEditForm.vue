@@ -62,7 +62,17 @@
 
     <div class="field">
       <label>Images</label>
-      <input type="file" multiple @change="onImagesChange" />
+      <input type="file" accept="image/*" multiple @change="onImagesChange" />
+      <div v-if="imagePreviews.length" class="image-preview-list">
+        <div
+          v-for="preview in imagePreviews"
+          :key="preview.url"
+          class="image-preview-card"
+        >
+          <img :src="preview.url" :alt="preview.name" />
+          <p>{{ preview.name }}</p>
+        </div>
+      </div>
     </div>
 
     <div class="field">
@@ -150,10 +160,14 @@ export default {
       isTrade: this.initialRecord.labels
         ? this.initialRecord.labels.some((l) => l.labelName === 'INVESTMENT_REC' || l === 'INVESTMENT_REC')
         : false,
+      imagePreviews: [],
       metadataRows: this.initialRecord.metadata
         ? Object.entries(this.initialRecord.metadata).map(([key, value]) => ({ key, value }))
         : []
     }
+  },
+  beforeUnmount() {
+    this.cleanupImagePreviews();
   },
   computed: {
     existingFiles() {
@@ -180,10 +194,24 @@ export default {
   },
   methods: {
     onImagesChange(e) {
-      this.form.images = Array.from(e.target.files);
+      this.form.images = Array.from(e.target.files).filter((file) => file.type.startsWith('image/'));
+      this.refreshImagePreviews();
     },
     onFilesChange(e) {
       this.form.files = Array.from(e.target.files);
+    },
+    refreshImagePreviews() {
+      this.cleanupImagePreviews();
+      this.imagePreviews = this.form.images.map((file) => ({
+        name: file.name,
+        url: URL.createObjectURL(file)
+      }));
+    },
+    cleanupImagePreviews() {
+      this.imagePreviews.forEach((preview) => {
+        URL.revokeObjectURL(preview.url);
+      });
+      this.imagePreviews = [];
     },
     addLabel() {
       const value = this.newLabel.trim();
@@ -241,6 +269,50 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.image-preview-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.image-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.45rem;
+  border: 1px solid #e5e8ed;
+  border-radius: 8px;
+  background: #f7fafc;
+}
+
+.image-preview-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.image-preview-card p {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #52606d;
+  word-break: break-word;
+}
+
+@media (max-width: 900px) {
+  .image-preview-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .image-preview-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 label {

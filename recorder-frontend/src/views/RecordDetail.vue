@@ -45,7 +45,7 @@
 
     <section class="files" v-if="record.recFiles && record.recFiles.length">
       <h2>Files</h2>
-      <div class="file-list">
+      <div v-if="imageFiles.length" class="image-list">
         <div
           v-for="file in imageFiles"
           :key="`img-${file.fileID}`"
@@ -54,6 +54,8 @@
           <img :src="file.url" :alt="file.filename" />
           <p class="file-name">{{ cleanFileName(file.filename) }}</p>
         </div>
+      </div>
+      <div v-if="otherFiles.length" class="file-list">
         <div
           v-for="file in otherFiles"
           :key="`file-${file.fileID}`"
@@ -169,7 +171,7 @@ export default {
     async loadFiles() {
       this.cleanupObjectUrls();
       const files = this.record?.recFiles || [];
-      const images = files.filter((f) => f.fileType === 'IMAGE').slice(0, 4);
+      const images = files.filter((f) => f.fileType === 'IMAGE');
       const others = files.filter((f) => f.fileType !== 'IMAGE');
 
       const imgResults = await Promise.all(
@@ -348,6 +350,13 @@ p {
   gap: 0.75rem;
 }
 
+.image-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
 .file-card {
   border: 1px solid #e5e8ed;
   border-radius: 10px;
@@ -385,5 +394,11 @@ p {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .image-list {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
