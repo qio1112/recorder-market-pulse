@@ -7,7 +7,7 @@
     </header>
 
     <div class="chart-grid single">
-      <dashboard-item title="totalPortfolio">
+      <dashboard-item title="TotalPortfolio">
         <div class="controls">
           <label class="control-label">
             <input type="checkbox" v-model="showTotalAggregate" />
@@ -134,7 +134,19 @@ export default defineComponent({
       return (params) => {
         if (!params || !params.length) return '';
         const date = params[0].axisValueLabel || params[0].name || '';
-        const lines = params.map((p) => {
+        const sortedParams = [...params].sort((a, b) => {
+          if (a.seriesName === 'Total' && b.seriesName !== 'Total') return 1;
+          if (b.seriesName === 'Total' && a.seriesName !== 'Total') return -1;
+          const aRaw = Array.isArray(a.data) ? a.data[1] : a.data;
+          const bRaw = Array.isArray(b.data) ? b.data[1] : b.data;
+          const aVal = Number(aRaw);
+          const bVal = Number(bRaw);
+          if (!Number.isFinite(aVal) && !Number.isFinite(bVal)) return 0;
+          if (!Number.isFinite(aVal)) return 1;
+          if (!Number.isFinite(bVal)) return -1;
+          return bVal - aVal;
+        });
+        const lines = sortedParams.map((p) => {
           const raw = Array.isArray(p.data) ? p.data[1] : p.data;
           const val = Number(raw);
           const display = Number.isFinite(val) ? val.toFixed(2) : raw;
