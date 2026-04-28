@@ -1,6 +1,9 @@
 <template>
   <section class="edit-record">
-    <h1>Edit Record</h1>
+    <header class="record-editor-header">
+      <p class="eyebrow">Records</p>
+      <h1>Edit Record</h1>
+    </header>
     <record-edit-form
       v-if="record"
       :initial-record="record"
@@ -55,12 +58,36 @@ export default {
 
 <style scoped>
 .edit-record {
-  max-width: 960px;
-  margin: 1.5rem auto;
-  padding: 1rem;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 1.75rem 1rem 2.5rem;
+}
+
+.record-editor-header {
+  margin-bottom: 1rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.25rem;
+  color: #52606d;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+h1 {
+  margin: 0;
+  color: #172033;
+  font-size: 1.75rem;
+  line-height: 1.2;
 }
 
 .muted {
+  padding: 1rem;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #ffffff;
   color: #52606d;
 }
 

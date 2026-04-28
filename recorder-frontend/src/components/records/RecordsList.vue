@@ -31,12 +31,17 @@ export default {
     queryText: {
       type: String,
       default: ''
+    },
+    initialPage: {
+      type: Number,
+      default: 0
     }
   },
+  emits: ['page-change'],
   data() {
     return {
       records: [],
-      currentPage: 0,
+      currentPage: this.initialPage,
       totalPages: 0,
       pageSize: 10,
       hasNext: false,
@@ -47,12 +52,17 @@ export default {
     filters: {
       deep: true,
       handler() {
-        this.currentPage = 0;
+        this.currentPage = this.initialPage;
         this.fetchRecords();
       }
     },
     queryText() {
-      this.currentPage = 0;
+      this.currentPage = this.initialPage;
+      this.fetchRecords();
+    },
+    initialPage(newPage) {
+      if (this.queryText || newPage === this.currentPage) return;
+      this.currentPage = newPage;
       this.fetchRecords();
     }
   },
@@ -91,8 +101,7 @@ export default {
       const next = this.currentPage + delta;
       if (next < 0) return;
       if (delta > 0 && !this.hasNext) return;
-      this.currentPage = next;
-      await this.fetchRecords();
+      this.$emit('page-change', next + 1);
     }
   }
 }

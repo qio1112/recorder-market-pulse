@@ -46,14 +46,17 @@
     <section class="files" v-if="record.recFiles && record.recFiles.length">
       <h2>Files</h2>
       <div v-if="imageFiles.length" class="image-list">
-        <div
+        <button
           v-for="file in imageFiles"
           :key="`img-${file.fileID}`"
-          class="file-card"
+          type="button"
+          class="file-card image-card"
+          :aria-label="`Preview image ${cleanFileName(file.filename)}`"
+          @click="openImagePreview(file)"
         >
           <img :src="file.url" :alt="file.filename" />
           <p class="file-name">{{ cleanFileName(file.filename) }}</p>
-        </div>
+        </button>
       </div>
       <div v-if="otherFiles.length" class="file-list">
         <div
@@ -82,6 +85,11 @@
       </base-button>
     </div>
     <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+    <image-preview
+      v-if="selectedImage"
+      :image="selectedImage"
+      @close="selectedImage = null"
+    />
   </section>
   <p v-else-if="isLoading" class="muted">Loading record…</p>
   <p v-else class="muted">Record not found.</p>
@@ -89,9 +97,11 @@
 
 <script>
 import { getRecordDetail, getRecFile, deleteRecord } from '../api/RecordService.js'
+import ImagePreview from '../components/records/ImagePreview.vue'
 
 export default {
   name: 'RecordDetailView',
+  components: { ImagePreview },
   props: {
     recordID: {
       type: String,
@@ -104,6 +114,7 @@ export default {
       isLoading: false,
       imageFiles: [],
       otherFiles: [],
+      selectedImage: null,
       errorMessage: '',
       confirmDelete: false
     }
@@ -152,6 +163,9 @@ export default {
         this.$router.push(`/edit-record/${this.record.id}`);
       }
     },
+    openImagePreview(file) {
+      this.selectedImage = file;
+    },
     async handleDeleteClick() {
       if (!this.record?.id) return;
       this.errorMessage = '';
@@ -191,6 +205,7 @@ export default {
         if (f.url) URL.revokeObjectURL(f.url);
       });
       this.imageFiles = [];
+      this.selectedImage = null;
     },
     async downloadFile(file) {
       this.errorMessage = '';
@@ -366,6 +381,23 @@ p {
   flex-direction: column;
   gap: 0.5rem;
   align-items: center;
+}
+
+.image-card {
+  width: 100%;
+  color: inherit;
+  cursor: zoom-in;
+  font: inherit;
+  text-align: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.image-card:hover,
+.image-card:focus-visible {
+  border-color: #2f80ed;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.14);
+  transform: translateY(-1px);
 }
 
 .file-card img {

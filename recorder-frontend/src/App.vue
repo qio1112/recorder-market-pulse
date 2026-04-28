@@ -1,11 +1,13 @@
 <template>
-  <div>
+  <div class="app-shell">
     <the-header></the-header>
-    <router-view v-slot="slotProps">
-      <transition name="route" mode="out-in">
-        <component :is="slotProps.Component"></component>
-      </transition>
-    </router-view>
+    <main class="app-main">
+      <router-view v-slot="slotProps">
+        <transition name="route" mode="out-in">
+          <component :is="slotProps.Component"></component>
+        </transition>
+      </router-view>
+    </main>
   </div>
 </template>
 
@@ -28,10 +30,31 @@ export default {
 
 html {
   font-family: "Roboto", sans-serif;
+  background: #edf3f8;
 }
 
 body {
   margin: 0;
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, #f4f8fb 0%, #edf3f8 42%, #e7eef6 100%);
+  color: #1f2933;
+}
+
+#app,
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-shell {
+  background:
+    radial-gradient(circle at top left, rgba(15, 76, 129, 0.08), transparent 26rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(237, 243, 248, 0.92));
+}
+
+.app-main {
+  min-height: calc(100vh - 4.2rem);
+  padding: 0.1px 0 2rem;
 }
 
 .route-enter-from {

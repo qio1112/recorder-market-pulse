@@ -10,6 +10,8 @@
     <records-list
       v-if="!activeQueryText"
       :filters="filtersFromRoute"
+      :initial-page="activePage"
+      @page-change="handlePageChange"
     ></records-list>
     <records-list
       v-else
@@ -66,11 +68,32 @@ export default {
       };
     },
     filterKey() {
-      return JSON.stringify(this.$route.query || {});
+      const filterQuery = { ...(this.$route.query || {}) };
+      delete filterQuery.page;
+      return JSON.stringify(filterQuery);
     },
     activeQueryText() {
       const q = this.$route.query || {};
       return q['query-text'] || '';
+    },
+    activePage() {
+      const rawPage = this.$route.query?.page;
+      const page = Number.parseInt(Array.isArray(rawPage) ? rawPage[0] : rawPage, 10);
+      return Number.isInteger(page) && page > 0 ? page - 1 : 0;
+    }
+  },
+  watch: {
+    activeQueryText: {
+      immediate: true,
+      handler(queryText) {
+        if (!queryText || this.$route.query?.page === undefined) return;
+        this.$router.replace({
+          query: {
+            ...(this.$route.query || {}),
+            page: undefined
+          }
+        });
+      }
     }
   },
   methods: {
@@ -92,6 +115,7 @@ export default {
       const query = this.buildQueryFromRequest(request);
       // Clear query-text when doing standard filter search
       query['query-text'] = undefined;
+      query.page = undefined;
       await this.$router.replace({ query });
     },
     async handleQuerySearch(queryText) {
@@ -101,8 +125,17 @@ export default {
         return;
       }
       const trimmed = queryText.trim().slice(0, 200);
-      const newQuery = { ...baseQuery, 'query-text': trimmed || undefined };
+      const newQuery = { ...baseQuery, 'query-text': trimmed || undefined, page: undefined };
       await this.$router.replace({ query: newQuery });
+    },
+    async handlePageChange(page) {
+      const nextPage = Number.isInteger(page) && page > 0 ? String(page) : undefined;
+      await this.$router.push({
+        query: {
+          ...(this.$route.query || {}),
+          page: nextPage
+        }
+      });
     }
   }
 }

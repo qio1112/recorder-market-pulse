@@ -10,22 +10,39 @@
       </div>
     </div>
 
-    <div class="images" v-if="imageFiles.length">
-      <img
+    <div class="images" v-if="imageFiles.length" @click.stop>
+      <button
         v-for="file in imageFiles"
         :key="file.fileID"
-        :src="file.url"
-        :alt="file.filename"
-      />
+        type="button"
+        class="image-thumb"
+        :aria-label="`Preview image ${cleanFileName(file.filename)}`"
+        @mousedown.stop
+        @click.stop.prevent="openImagePreview(file)"
+        @keydown.enter.stop.prevent="openImagePreview(file)"
+        @keydown.space.stop.prevent="openImagePreview(file)"
+      >
+        <img
+          :src="file.url"
+          :alt="file.filename"
+        />
+      </button>
     </div>
+    <image-preview
+      v-if="selectedImage"
+      :image="selectedImage"
+      @close="selectedImage = null"
+    />
   </article>
 </template>
 
 <script>
 import { getRecFile } from '../../api/RecordService.js'
+import ImagePreview from './ImagePreview.vue'
 
 export default {
   name: 'RecordPreview',
+  components: { ImagePreview },
   props: {
     record: {
       type: Object,
@@ -34,7 +51,8 @@ export default {
   },
   data() {
     return {
-      imageFiles: []
+      imageFiles: [],
+      selectedImage: null
     }
   },
   computed: {
@@ -55,16 +73,23 @@ export default {
     this.cleanupObjectUrls();
   },
   methods: {
-    goToDetail() {
+    goToDetail(event) {
+      if (event?.target?.closest?.('.images')) {
+        return;
+      }
       if (this.record?.id) {
         this.$router.push(`/records/${this.record.id}`);
       }
+    },
+    openImagePreview(file) {
+      this.selectedImage = file;
     },
     cleanupObjectUrls() {
       this.imageFiles.forEach((f) => {
         if (f.url) URL.revokeObjectURL(f.url);
       });
       this.imageFiles = [];
+      this.selectedImage = null;
     },
     async loadImages() {
       this.cleanupObjectUrls();
@@ -81,6 +106,11 @@ export default {
         })
       );
       this.imageFiles = results.filter(Boolean);
+    },
+    cleanFileName(name) {
+      if (!name) return '';
+      const parts = String(name).split('__');
+      return parts.length > 1 ? parts.slice(1).join('__') : name;
     }
   }
 }
@@ -156,12 +186,29 @@ export default {
   gap: 0.5rem;
 }
 
-.images img {
+.image-thumb {
+  display: block;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 1px solid #e5e8ed;
+  border-radius: 8px;
+  background: #f6f9fc;
+  cursor: zoom-in;
+  overflow: hidden;
+}
+
+.image-thumb:hover,
+.image-thumb:focus-visible {
+  border-color: #2f80ed;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.14);
+}
+
+.image-thumb img {
   width: 64px;
   height: 64px;
   object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid #e5e8ed;
-  background: #f6f9fc;
+  display: block;
 }
 </style>
