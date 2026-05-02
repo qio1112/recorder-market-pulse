@@ -76,8 +76,8 @@
         <option value="title_r">Title (reversed)</option>
         <option value="creationTime">Creation time</option>
         <option value="creationTime_r">Creation time (reversed)</option>
-        <option value="modifiedTime">Last modified time</option>
-        <option value="modifiedTime_r">Last modified time (reversed)</option>
+        <option value="lastModifiedTime">Last modified time</option>
+        <option value="lastModifiedTime_r">Last modified time (reversed)</option>
       </select>
     </div>
 

@@ -3,6 +3,7 @@ import http from './http'
 export async function getRecords(listRecordRequest) {
   try {
     const body = listRecordRequest.toApi();
+    console.log(body);
     const response = await http.post("/records/list-records", body);
     return response.data;
   } catch (error) {
