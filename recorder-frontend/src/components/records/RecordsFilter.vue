@@ -94,6 +94,7 @@
           v-model.trim="queryText"
           type="text"
           placeholder="Describe what you're looking for"
+          @keydown.enter.stop.prevent="handleQuerySearch"
         />
         <button type="button" class="primary" :disabled="!queryText" @click="handleQuerySearch">Search</button>
       </div>
@@ -192,13 +193,14 @@ export default {
 .filter-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1.1rem;
+  gap: 0.9rem;
+  padding: 1rem;
   border: 1px solid #cfd7e2;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #ffffff;
-  max-width: 960px;
-  margin: 1.25rem auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   box-shadow: 0 8px 24px rgba(15, 76, 129, 0.04);
 }
 
@@ -216,6 +218,8 @@ label {
 
 input,
 select {
+  width: 100%;
+  box-sizing: border-box;
   padding: 0.55rem 0.65rem;
   border-radius: 7px;
   border: 1px solid #cfd7e2;
@@ -224,12 +228,12 @@ select {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: 1fr;
   gap: 0.55rem;
 }
 
 .dates-grid {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .check-row {
@@ -238,9 +242,20 @@ select {
   gap: 1rem;
 }
 
+.check-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
 .labels-row {
   display: flex;
   gap: 0.5rem;
+}
+
+.labels-row input {
+  min-width: 0;
 }
 
 .add-btn {
@@ -283,6 +298,10 @@ select {
   gap: 0.6rem;
 }
 
+.actions button {
+  flex: 1;
+}
+
 .query-row {
   display: flex;
   flex-direction: column;
@@ -292,7 +311,8 @@ select {
 .query-input-row {
   display: flex;
   gap: 0.6rem;
-  align-items: center;
+  align-items: stretch;
+  flex-direction: column;
 }
 
 .query-input-row input {
@@ -332,6 +352,39 @@ select {
 }
 
 select#sortBy {
-  max-width: 220px;
+  max-width: none;
+}
+
+@media (min-width: 1180px) {
+  .dates-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .filter-form {
+    margin: 0;
+  }
+
+  .dates-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .query-input-row {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+@media (max-width: 560px) {
+  .labels-row,
+  .actions,
+  .query-input-row {
+    flex-direction: column;
+  }
+
+  .dates-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

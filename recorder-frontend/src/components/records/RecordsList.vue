@@ -109,11 +109,12 @@ export default {
 
 <style scoped>
   .records-list {
-    margin: 1rem auto;
+    margin: 0;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    max-width: 960px;
+    width: 100%;
+    max-width: none;
   }
 
 .list {

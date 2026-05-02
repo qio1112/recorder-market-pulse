@@ -1,24 +1,28 @@
 <template>
-  <div>
-    <records-filter
-      :initial-filters="filtersFromRoute"
-      :key="filterKey"
-      :initial-query-text="activeQueryText"
-      @submit="updateRecordList"
-      @query="handleQuerySearch"
-    ></records-filter>
-    <records-list
-      v-if="!activeQueryText"
-      :filters="filtersFromRoute"
-      :initial-page="activePage"
-      @page-change="handlePageChange"
-    ></records-list>
-    <records-list
-      v-else
-      :filters="filtersFromRoute"
-      :query-text="activeQueryText"
-    ></records-list>
-  </div>
+  <section class="records-page">
+    <aside class="records-sidebar">
+      <records-filter
+        :initial-filters="filtersFromRoute"
+        :key="filterKey"
+        :initial-query-text="activeQueryText"
+        @submit="updateRecordList"
+        @query="handleQuerySearch"
+      ></records-filter>
+    </aside>
+    <main class="records-content">
+      <records-list
+        v-if="!activeQueryText"
+        :filters="filtersFromRoute"
+        :initial-page="activePage"
+        @page-change="handlePageChange"
+      ></records-list>
+      <records-list
+        v-else
+        :filters="filtersFromRoute"
+        :query-text="activeQueryText"
+      ></records-list>
+    </main>
+  </section>
 </template>
 
 <script>
@@ -140,3 +144,36 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.records-page {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  align-items: start;
+  gap: 1.25rem;
+  width: min(1440px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 1.25rem 0 2rem;
+}
+
+.records-sidebar {
+  position: sticky;
+  top: 1rem;
+  min-width: 0;
+}
+
+.records-content {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .records-page {
+    grid-template-columns: 1fr;
+    width: min(960px, calc(100% - 1.5rem));
+  }
+
+  .records-sidebar {
+    position: static;
+  }
+}
+</style>
