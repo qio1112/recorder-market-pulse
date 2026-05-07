@@ -152,8 +152,12 @@ fi
 
 if [[ "$RUN_DOCKER_COMPOSE" == "true" ]]; then
   echo "Removing any existing containers with fixed names..."
-  docker rm -f recorder-backend 2>/dev/null || true
-  docker rm -f market-pulse-api 2>/dev/null || true
+  if [[ "$SKIP_BUILD" != "true" && "$BUILD_BACKEND" == "true" ]]; then
+    docker rm -f recorder-backend 2>/dev/null || true
+  fi
+  if [[ "$SKIP_BUILD" != "true" && "$BUILD_MARKET_PULSE" == "true" ]]; then
+    docker rm -f market-pulse-api 2>/dev/null || true
+  fi
 
   echo "Starting stack with docker compose..."
   docker compose up -d --remove-orphans

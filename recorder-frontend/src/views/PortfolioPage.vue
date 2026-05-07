@@ -10,6 +10,15 @@
       <dashboard-item title="TotalPortfolio">
         <div class="controls">
           <label class="control-label">
+            <span>Range</span>
+            <select v-model="selectedDateRange" class="range-select">
+              <option value="1m">1 Month</option>
+              <option value="ytd">YTD</option>
+              <option value="1y">1 Year</option>
+              <option value="all">All</option>
+            </select>
+          </label>
+          <label class="control-label">
             <input type="checkbox" v-model="showTotalAggregate" />
             Show total line
           </label>
@@ -86,6 +95,7 @@ export default defineComponent({
       aggregatedMetrics: {},
       donutOption: null,
       showTotalAggregate: true,
+      selectedDateRange: '1m',
       selectedSymbols: [],
       invalidSymbols: []
     }
@@ -103,6 +113,9 @@ export default defineComponent({
   },
   watch: {
     showTotalAggregate() {
+      this.buildCharts();
+    },
+    selectedDateRange() {
       this.buildCharts();
     }
   },
@@ -180,10 +193,10 @@ export default defineComponent({
         .map((sym) => {
           const data = this.enrichedPortfolioTradeData[sym];
           if (!data?.dates || !data[metric]) return null;
-          const points = data.dates.map((d, idx) => [d, data[metric][idx]]);
-          return { name: sym, type: 'line', smooth: true, data: points };
+          const points = this.filterPointsBySelectedDateRange(data.dates.map((d, idx) => [d, data[metric][idx]]));
+          return { name: sym, type: 'line', smooth: true, showSymbol: false, data: points };
         })
-        .filter(Boolean);
+        .filter((series) => series && series.data.length);
     },
     maybeAddAggregateSeries(metric, series) {
       const aggregateKeys = [
@@ -199,13 +212,15 @@ export default defineComponent({
       if (metric === 'totalPortfolio' && !this.showTotalAggregate) return series;
       const agg = this.aggregateMetric(metric);
       if (!agg.dates.length) return series;
-      const aggPoints = agg.dates.map((d, idx) => [d, agg.values[idx]]);
+      const aggPoints = this.filterPointsBySelectedDateRange(agg.dates.map((d, idx) => [d, agg.values[idx]]));
+      if (!aggPoints.length) return series;
       return [
         ...series,
         {
           name: 'Total',
           type: 'line',
           smooth: true,
+          showSymbol: false,
           data: aggPoints,
           lineStyle: { width: 3 }
         }
@@ -217,13 +232,42 @@ export default defineComponent({
       series.forEach((s) => s.data.forEach(([d]) => datesSet.add(d)));
       const allDates = Array.from(datesSet).sort();
       return {
+        textStyle: { color: '#52606d', fontSize: 11 },
         tooltip: { trigger: 'axis', formatter },
-        legend: { top: 0 },
-        xAxis: { type: 'category', data: allDates },
-        yAxis: { type: 'value' },
+        legend: { top: 0, textStyle: { color: '#52606d', fontSize: 11 } },
+        xAxis: {
+          type: 'category',
+          data: allDates,
+          axisLabel: { color: '#627d98', fontSize: 10 }
+        },
+        yAxis: {
+          type: 'value',
+          axisLabel: { color: '#627d98', fontSize: 10 }
+        },
         series,
         grid: { left: '8%', right: '4%', top: '14%', bottom: '10%' }
       };
+    },
+    filterPointsBySelectedDateRange(points) {
+      if (this.selectedDateRange === 'all' || !points.length) return points;
+      const validDates = points
+        .map(([date]) => new Date(`${date}T00:00:00`))
+        .filter((date) => !Number.isNaN(date.getTime()));
+      if (!validDates.length) return points;
+
+      const maxDate = new Date(Math.max(...validDates.map((date) => date.getTime())));
+      let startDate = null;
+      if (this.selectedDateRange === '1m') {
+        startDate = new Date(maxDate);
+        startDate.setMonth(startDate.getMonth() - 1);
+      } else if (this.selectedDateRange === '1y') {
+        startDate = new Date(maxDate);
+        startDate.setFullYear(startDate.getFullYear() - 1);
+      } else if (this.selectedDateRange === 'ytd') {
+        startDate = new Date(maxDate.getFullYear(), 0, 1);
+      }
+      if (!startDate) return points;
+      return points.filter(([date]) => new Date(`${date}T00:00:00`) >= startDate);
     },
     buildCharts() {
       const symbols = this.selectedSymbols.length
@@ -265,8 +309,14 @@ export default defineComponent({
       }
 
       this.donutOption = {
+        textStyle: { color: '#52606d', fontSize: 11 },
         tooltip: { trigger: 'item', formatter: '{b}: {d}% ({c})' },
-        legend: { orient: 'vertical', right: 10, top: 'middle' },
+        legend: {
+          orient: 'vertical',
+          right: 10,
+          top: 'middle',
+          textStyle: { color: '#52606d', fontSize: 11 }
+        },
         series: [
           {
             name: 'Allocation',
@@ -331,46 +381,89 @@ export default defineComponent({
 
 <style scoped>
 .portfolio {
-  max-width: 1200px;
-  margin: 1.5rem auto;
-  padding: 1rem;
+  max-width: 1320px;
+  margin: 1rem auto;
+  padding: 0 0.6rem 1rem;
 }
 
 .head {
-  margin-bottom: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.head h1 {
+  color: #0f4c81;
+  font-size: 1.4rem;
+  margin: 0 0 0.25rem;
 }
 
 .controls {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 0.5rem;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.45rem;
 }
 
 .control-label {
-  color: #243b53;
-  font-size: 0.9rem;
+  color: #52606d;
+  font-size: 0.78rem;
+  font-weight: 700;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
 }
 
+.range-select {
+  border: 1px solid #d9e2ec;
+  border-radius: 6px;
+  color: #486581;
+  background: #fff;
+  padding: 0.42rem 0.55rem;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.range-select:focus {
+  border-color: #2f80ed;
+  outline: none;
+}
+
 .muted {
   color: #52606d;
+  font-size: 0.88rem;
+  margin: 0;
 }
 
 .muted.small {
-  font-size: 0.9rem;
+  font-size: 0.78rem;
 }
 
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 0.8rem;
 }
 
 .chart-grid.single {
   grid-template-columns: 1fr;
-  margin-bottom: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+:deep(.dashboard-item) {
+  border-color: #d9e2ec;
+  border-radius: 8px;
+  padding: 0.65rem;
+  gap: 0.4rem;
+}
+
+:deep(.item-head h2) {
+  color: #243b53;
+  font-size: 0.95rem;
+}
+
+:deep(.item-head .muted) {
+  color: #627d98;
+  font-size: 0.78rem;
 }
 
 .chart-card {
@@ -389,6 +482,6 @@ export default defineComponent({
 
 .chart {
   width: 100%;
-  height: 340px;
+  height: 315px;
 }
 </style>

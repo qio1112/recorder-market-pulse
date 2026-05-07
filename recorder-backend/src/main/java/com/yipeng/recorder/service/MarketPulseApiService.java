@@ -5,7 +5,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yipeng.recorder.model.StockDailyHistory;
-import com.yipeng.recorder.model.User;
+import com.yipeng.recorder.response.OptionExpiryDatesResponse;
+import com.yipeng.recorder.response.OptionHistoryResponse;
+import com.yipeng.recorder.response.OptionParquetCombineResponse;
+import com.yipeng.recorder.response.OptionSymbolsResponse;
 import com.yipeng.recorder.response.StockDailyHistoryForSymbolResponse;
 import jakarta.mail.MessagingException;
 import org.apache.commons.lang3.StringUtils;
@@ -134,6 +137,80 @@ public class MarketPulseApiService {
         return body != null && body.get("symbols") != null
                 ? body.get("symbols")
                 : Collections.emptyList();
+    }
+
+    public OptionSymbolsResponse getOptionSymbols() {
+        String url = marketPulseBaseUrl + "/options/symbols";
+        logger.info("Calling Market Pulse option symbols API: {}", url);
+        ResponseEntity<OptionSymbolsResponse> response = restTemplate.postForEntity(
+                url,
+                buildJsonRequest(Collections.emptyMap()),
+                OptionSymbolsResponse.class
+        );
+        OptionSymbolsResponse body = response.getBody() == null ? new OptionSymbolsResponse() : response.getBody();
+        logger.info("Market Pulse option symbols API returned {} symbol(s)", body.getSymbols().size());
+        return body;
+    }
+
+    public OptionExpiryDatesResponse getOptionExpiryDates(String symbol) {
+        String url = marketPulseBaseUrl + "/options/expiry-dates";
+        logger.info("Calling Market Pulse option expiry API for symbol={}: {}", symbol, url);
+        Map<String, String> payload = new HashMap<>();
+        payload.put("symbol", symbol);
+        ResponseEntity<OptionExpiryDatesResponse> response = restTemplate.postForEntity(
+                url,
+                buildJsonRequest(payload),
+                OptionExpiryDatesResponse.class
+        );
+        OptionExpiryDatesResponse body = response.getBody() == null ? new OptionExpiryDatesResponse() : response.getBody();
+        logger.info(
+                "Market Pulse option expiry API returned {} expiry date(s) for symbol={}",
+                body.getExpiryDates().size(),
+                symbol
+        );
+        return body;
+    }
+
+    public OptionHistoryResponse getOptionHistory(String symbol, String expiry, String optionType) {
+        String url = marketPulseBaseUrl + "/options/history";
+        logger.info(
+                "Calling Market Pulse option history API for symbol={}, expiry={}, optionType={}: {}",
+                symbol,
+                expiry,
+                optionType,
+                url
+        );
+        Map<String, String> payload = new HashMap<>();
+        payload.put("symbol", symbol);
+        payload.put("expiry", expiry);
+        payload.put("option_type", optionType);
+        ResponseEntity<OptionHistoryResponse> response = restTemplate.postForEntity(
+                url,
+                buildJsonRequest(payload),
+                OptionHistoryResponse.class
+        );
+        OptionHistoryResponse body = response.getBody() == null ? new OptionHistoryResponse() : response.getBody();
+        logger.info(
+                "Market Pulse option history API returned {} strike(s) for symbol={}, expiry={}, optionType={}",
+                body.getStrikes().size(),
+                symbol,
+                expiry,
+                optionType
+        );
+        return body;
+    }
+
+    public OptionParquetCombineResponse combineExpiredOptionParquetFiles() {
+        String url = marketPulseBaseUrl + "/options/combine-expired-parquet";
+        logger.info("Calling Market Pulse combine expired option parquet API: {}", url);
+        ResponseEntity<OptionParquetCombineResponse> response = restTemplate.getForEntity(
+                url,
+                OptionParquetCombineResponse.class
+        );
+        OptionParquetCombineResponse body = response.getBody() == null ? new OptionParquetCombineResponse() : response.getBody();
+        logger.info("Market Pulse combine expired option parquet API combined {} expiry/type folder(s)",
+                body.getCombinedCount());
+        return body;
     }
 
     public ResponseEntity<String> getFearGreedIndex() {

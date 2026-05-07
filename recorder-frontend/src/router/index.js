@@ -7,6 +7,7 @@ import AddNewRecord from '../views/AddNewRecord.vue'
 import EditRecord from '../views/EditRecord.vue'
 import PortfolioPage from '../views/PortfolioPage.vue'
 import OptionReturn from '../views/OptionReturn.vue'
+import OptionHistoryPage from '../views/OptionHistoryPage.vue'
 import PageNotFound from '../views/PageNotFound.vue'
 import CalendarPage from '../views/CalendarPage.vue'
 import store from '../store/index.js'
@@ -28,8 +29,10 @@ const router = createRouter({
     { path: '/edit-record/:recordID', component: EditRecord, props: true, meta: { requiresAuth: true } },
     { path: '/portfolio', redirect: '/tools/portfolio', meta: { requiresAuth: true } },
     { path: '/option-return', redirect: '/tools/option-return', meta: { requiresAuth: true } },
+    { path: '/option-history', redirect: '/tools/option-history', meta: { requiresAuth: true } },
     { path: '/tools/portfolio', component: PortfolioPage, meta: { requiresAuth: true } },
     { path: '/tools/option-return', component: OptionReturn, meta: { requiresAuth: true } },
+    { path: '/tools/option-history', component: OptionHistoryPage, meta: { requiresAuth: true } },
     { path: '/account', component: UserAccountInfo, meta: { requiresAuth: true } },
     { path: '/login', component: LoginPage, meta: { requiresUnauth: true }},
     { path: '/signup', component: null, meta: { requiresUnauth: true }},

@@ -14,7 +14,7 @@ services:
       dockerfile: Dockerfile
       args:
         APP_TIMEZONE: ${APP_TIMEZONE}
-    image: yipeng6257/market-pulse-api:v3
+    image: yipeng6257/market-pulse-api:v4
     container_name: market-pulse-api
     restart: unless-stopped
     env_file: .env
@@ -27,8 +27,8 @@ services:
       qdrant:
         condition: service_started
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://localhost:8000/health').read(); sys.exit(0)"]
-      interval: 120s
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://localhost:8000/health', timeout=3).read(); sys.exit(0)"]
+      interval: 15s
       timeout: 5s
       retries: 5
       start_period: 20s
@@ -41,7 +41,7 @@ services:
         APP_TIMEZONE: ${APP_TIMEZONE}
         BACKEND_APP_LOG_PATH: ${BACKEND_APP_LOG_PATH}
         BACKEND_APP_FILE_PATH: ${BACKEND_APP_FILE_PATH}
-    image: yipeng6257/recorder-backend:v3
+    image: yipeng6257/recorder-backend:v4
     container_name: recorder-backend
     restart: unless-stopped
     env_file: .env

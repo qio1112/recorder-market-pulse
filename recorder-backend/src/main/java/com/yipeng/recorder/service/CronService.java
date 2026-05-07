@@ -1,6 +1,7 @@
 package com.yipeng.recorder.service;
 
 import com.yipeng.recorder.model.StockDailyHistory;
+import com.yipeng.recorder.response.OptionParquetCombineResponse;
 import com.yipeng.recorder.utils.DateTimeUtils;
 import com.yipeng.recorder.utils.IPUtil;
 import jakarta.mail.MessagingException;
@@ -46,7 +47,7 @@ public class CronService {
 
     @Scheduled(cron = "0 30 13 * * *")
     public void runUpdateStockTask1330() {
-        updateStockOptionDataJob("13:30TESTTEST");
+        updateStockOptionDataJob("13:30");
     }
 
     @Scheduled(cron = "0 30 16 * * *")
@@ -86,6 +87,11 @@ public class CronService {
         serverStatusEmail("23:00");
     }
 
+    @Scheduled(cron = "0 30 21 * * FRI")
+    public void runCombineExpiredOptionParquetFiles2130Friday() {
+        combineExpiredOptionParquetFilesJob("Friday 21:30");
+    }
+
     public void updateStockDailyHistory(String timeName) {
         String today = dateTimeUtils.getCurrentDateString();
         String fullTimeName = today + " " + timeName;
@@ -102,6 +108,15 @@ public class CronService {
         String response = this.marketPulseApiService.runUpdateStockOptionDataApi(null);
         logger.info("Updated option data: " + fullTimeName + "\n" + response);
         this.sendTaskEmail("Updated option data " + fullTimeName, response);
+    }
+
+    public void combineExpiredOptionParquetFilesJob(String timeName) {
+        String today = dateTimeUtils.getCurrentDateString();
+        String fullTimeName = today + " " + timeName;
+        OptionParquetCombineResponse response = this.marketPulseApiService.combineExpiredOptionParquetFiles();
+        logger.info("Combined expired option parquet files: {}. Combined count: {}",
+                fullTimeName,
+                response == null ? null : response.getCombinedCount());
     }
 
     public void sendTaskEmail(String subject, String content) {

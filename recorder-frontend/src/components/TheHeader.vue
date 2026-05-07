@@ -5,16 +5,23 @@
       <li><router-link to="/records">Records</router-link></li>
       <li><router-link to="/calendar">Calendar</router-link></li>
       <li><router-link to="/add-record">Add Record</router-link></li>
-      <li class="nav-dropdown">
+      <li class="nav-dropdown" @mouseleave="closeToolsMenu">
         <button
           type="button"
           class="nav-action nav-dropdown-trigger"
           :class="{ 'router-link-active': isToolsActive }"
+          @mouseenter="openToolsMenu"
+          @focus="openToolsMenu"
+          @click="toggleToolsMenu"
         >
           Tools
           <span class="dropdown-caret">▾</span>
         </button>
-        <ul class="dropdown-menu">
+        <ul
+          v-show="isToolsMenuOpen"
+          class="dropdown-menu"
+          @mouseleave="closeToolsMenu"
+        >
           <li>
             <router-link to="/tools/portfolio">
               <span class="tool-title">Portfolio</span>
@@ -27,6 +34,12 @@
               <span class="tool-description">Options position analysis</span>
             </router-link>
           </li>
+          <li>
+            <router-link to="/tools/option-history">
+              <span class="tool-title">Option History</span>
+              <span class="tool-description">Prices, Greeks, and stock context</span>
+            </router-link>
+          </li>
         </ul>
       </li>
       <li><router-link to="/account">Account</router-link></li>
@@ -37,6 +50,11 @@
 
 <script>
 export default {
+  data() {
+    return {
+      isToolsMenuOpen: false
+    }
+  },
   computed: {
     isUserAuthenticated() {
       return this.$store.getters['user/isUserAuthenticated'];
@@ -46,6 +64,15 @@ export default {
     }
   },
   methods: {
+    openToolsMenu() {
+      this.isToolsMenuOpen = true;
+    },
+    closeToolsMenu() {
+      this.isToolsMenuOpen = false;
+    },
+    toggleToolsMenu() {
+      this.isToolsMenuOpen = !this.isToolsMenuOpen;
+    },
     logoutUser() {
       this.$store.dispatch('user/logoutUser');
       this.$router.replace('/login');
@@ -174,7 +201,10 @@ li {
   top: calc(100% + 0.45rem);
   left: 0;
   z-index: 20;
-  display: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.2rem;
   min-width: 17rem;
   margin: 0;
   margin-left: 0;
@@ -221,11 +251,6 @@ li {
   font-weight: 500;
 }
 
-.nav-dropdown:hover .dropdown-menu,
-.nav-dropdown:focus-within .dropdown-menu {
-  display: block;
-}
-
 @media (min-width: 640px) {
   header {
     flex-wrap: nowrap;
@@ -247,7 +272,6 @@ li {
 
   .dropdown-menu {
     position: static;
-    display: none;
     width: 100%;
     margin-top: 0.25rem;
     box-shadow: none;

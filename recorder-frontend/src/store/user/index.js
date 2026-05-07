@@ -1,5 +1,7 @@
 import { authenticate, parseJwtInfo } from '../../api/UserService.js'
 
+const OPTION_HISTORY_SELECTION_STORAGE_KEY = 'recorder.optionHistory.selectedOptions'
+
 export default {
   namespaced: true,
   state() {
@@ -28,12 +30,18 @@ export default {
       const jwtToken = await authenticate(payload.username, payload.password);
       if (jwtToken) {
         localStorage.setItem('token', jwtToken);
+        localStorage.removeItem(OPTION_HISTORY_SELECTION_STORAGE_KEY);
+        context.dispatch('optionHistory/clearCache', null, { root: true });
         context.commit('userLogin', {...payload, jwtToken: jwtToken});
       } else {
+        localStorage.removeItem(OPTION_HISTORY_SELECTION_STORAGE_KEY);
+        context.dispatch('optionHistory/clearCache', null, { root: true });
         context.commit('userLogout');
       }
     },
     logoutUser(context) {
+      localStorage.removeItem(OPTION_HISTORY_SELECTION_STORAGE_KEY);
+      context.dispatch('optionHistory/clearCache', null, { root: true });
       context.commit('userLogout');
       localStorage.setItem('token', '')
     }
