@@ -18,15 +18,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python dependencies first to leverage Docker layer caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code
 COPY . .
+RUN chmod +x /app/market_pulse/docker-entrypoint.sh
 
 # Declare resources as a volume so data/logs can be persisted or mounted
-VOLUME ["/app/market_pulse/resources"]
+VOLUME ["/app/market_pulse/resources", "/app/market_pulse/.venv_docker"]
 
 EXPOSE 8000
 
 # Run the FastAPI app with uvicorn
+ENTRYPOINT ["/app/market_pulse/docker-entrypoint.sh"]
 CMD ["uvicorn", "main.api.app:app", "--host", "0.0.0.0", "--port", "8000"]

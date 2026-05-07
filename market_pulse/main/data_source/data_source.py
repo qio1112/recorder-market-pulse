@@ -4,11 +4,17 @@ import time
 import yfinance as yf
 import pandas as pd
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import datetime
 import json
 import requests
 
+from main.data_source.option_format_conversion import DEFAULT_WORKERS
+from main.data_source.option_enrichment import (
+    enrich_option_rows,
+    get_symbol_enrichment_data_yf,
+    get_risk_free_df_yf,
+)
 from main.utils.logger_utils import setup_logging
 from main.utils.path_utils import get_resources_path
 
@@ -276,16 +282,21 @@ class StockPriceData:
 class StockOptionData:
     def __init__(self, source_folder_name: str = "option_data"):
         self.source_path = get_resources_path(source_folder_name)
+        self.parquet_source_path = get_resources_path(f"{source_folder_name}_parquet")
         logger.info(f"Option Source Path: {self.source_path}")
+        logger.info(f"Option Parquet Source Path: {self.parquet_source_path}")
         self.df_dict = dict()
 
-    def update_option_data_from_yf(self, symbols: str | list[str], revised_on_date: str = None, max_workers: int = 8,
-                                   time_label: str = "close"):
+    def update_option_data_from_yf(self, symbols: str | list[str], revised_on_date: str = None,
+                                   max_workers: int = DEFAULT_WORKERS,
+                                   time_label: str = "close", to_parquet_file: bool = True):
         if isinstance(symbols, str):
             symbols = [symbols]
-        num_workers = min(len(symbols), max_workers)
+        requested_workers = DEFAULT_WORKERS if max_workers is None else max_workers
+        num_workers = min(len(symbols), requested_workers, DEFAULT_WORKERS)
         logger.info(
             f"Updating option data for symbols: {symbols} (with {num_workers} workers). time_label = {time_label}")
+        risk_free_df = get_risk_free_df_yf() if to_parquet_file else None
         remaining_symbols = symbols
         retry_count = 0
         while remaining_symbols is not None and len(remaining_symbols) > 0:
@@ -297,12 +308,14 @@ class StockOptionData:
                 wait_time = (retry_count + 2) ** 2
                 logger.info(f"Retry getting option data after {wait_time} seconds....")
                 time.sleep(wait_time)
-            with ThreadPoolExecutor(max_workers=num_workers) as executor:
-                failed_symbols_itr = executor.map(self.write_options_to_csv, remaining_symbols,
+            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+                failed_symbols_itr = executor.map(self.write_option_to_file, remaining_symbols,
                                                   [revised_on_date] * len(remaining_symbols),
                                                   [False] * len(remaining_symbols),
                                                   [True] * len(remaining_symbols),
-                                                  [time_label] * len(remaining_symbols))
+                                                  [time_label] * len(remaining_symbols),
+                                                  [to_parquet_file] * len(remaining_symbols),
+                                                  [risk_free_df] * len(remaining_symbols))
                 failed_symbols = []
                 for failed_symbol in failed_symbols_itr:
                     failed_symbols.append(failed_symbol)
@@ -339,17 +352,41 @@ class StockOptionData:
             os.makedirs(file_path, exist_ok=True)
         return file_path, file_name
 
-    def write_options_to_csv(self, symbol: str, revised_date: str = None,
-                             to_split_csv: bool = False, to_combined_csv: bool = True, time_label: str = "close"):
+    def get_option_chain_parquet_path(self, symbol: str, option_type: str, expire_date: str, revised_date: str,
+                                      mkdir: bool = False, time_label: str = "close"):
+        if option_type != "call" and option_type != "put":
+            logger.error(f"Invalid option type {option_type}")
+            raise ValueError(f"Invalid option type {option_type}")
+        if time_label == "close":
+            file_path = self.parquet_source_path
+        else:
+            file_path = self.parquet_source_path + "_" + time_label
+
+        file_path = os.path.join(file_path, f"symbol={symbol}", f"expiry={expire_date}", f"type={option_type}")
+        file_name = f"{symbol}_{expire_date}_{option_type}_{revised_date}.parquet"
+        if mkdir:
+            os.makedirs(file_path, exist_ok=True)
+        return file_path, file_name
+
+    def write_option_to_file(self, symbol: str, revised_date: str = None,
+                             to_split_csv: bool = False, to_combined_csv: bool = True, time_label: str = "close",
+                             to_parquet_file: bool = True, risk_free_df: pd.DataFrame = None):
         today = str(datetime.date.today())
         if revised_date:
             today = revised_date
 
-        if not to_split_csv and not to_combined_csv:
-            logger.warning(f"Both to_split_csv and to_combined_csv are False. Not writing option data to anywhere!! ")
+        if not to_split_csv and not to_combined_csv and not to_parquet_file:
+            logger.warning(f"All option output settings are False. Not writing option data to anywhere!! ")
         try:
             ticker = yf.Ticker(symbol)
             exp_dates = ticker.options
+            stock_history_df = None
+            dividend_yield = None
+            if to_parquet_file:
+                logger.info(f"Loading enrichment data for option parquet update: {symbol}")
+                stock_history_df, dividend_yield = get_symbol_enrichment_data_yf(symbol, ticker=ticker)
+                if risk_free_df is None:
+                    risk_free_df = get_risk_free_df_yf()
             for exp_date in exp_dates:
                 option_chain = ticker.option_chain(exp_date)
                 if to_split_csv:
@@ -360,54 +397,56 @@ class StockOptionData:
 
                     option_chain[0].to_csv(os.path.join(call_file_dir, call_file_name), sep='\t', encoding='utf-8')
                     option_chain[1].to_csv(os.path.join(put_file_dir, put_file_name), sep='\t', encoding='utf-8')
-                if to_combined_csv:
-                    call_latest_updated_date = self.get_latest_updated_date(symbol, "call", exp_date,
-                                                                            time_label=time_label)
-                    put_latest_updated_date = self.get_latest_updated_date(symbol, "put", exp_date,
+                column_names = ["date", "strike", "contractSymbol", "lastTradeDate",
+                                "lastPrice",
+                                "bid", "ask", "change", "percentChange", "volume", "openInterest",
+                                "impliedVolatility", "inTheMoney", "contractSize"]
+                option_dataframes = {
+                    "call": option_chain[0],
+                    "put": option_chain[1],
+                }
+                for option_type, option_df in option_dataframes.items():
+                    if option_df is None or len(option_df) == 0:
+                        logger.warning(f"No {option_type.upper()} data for {symbol} for exp_date {exp_date}")
+                        continue
+
+                    option_df = option_df.copy()
+                    option_df["date"] = pd.to_datetime(today)
+                    option_df["strike_plus_date"] = option_df["strike"].astype("str") + "_" + today
+                    option_df.drop(["currency"], axis=1, inplace=True)
+                    option_df.set_index("strike_plus_date", inplace=True)
+                    option_df = option_df[column_names]
+
+                    if to_combined_csv:
+                        latest_updated_date = self.get_latest_updated_date(symbol, option_type, exp_date,
                                                                            time_label=time_label)
-                    call_file_dir, call_file_name = self.get_option_chain_path(symbol, "call", exp_date,
-                                                                               mkdir=True, time_label=time_label)
-                    put_file_dir, put_file_name = self.get_option_chain_path(symbol, "put", exp_date,
+                        if latest_updated_date is None or today > latest_updated_date:
+                            file_dir, file_name = self.get_option_chain_path(symbol, option_type, exp_date,
                                                                              mkdir=True, time_label=time_label)
-
-                    column_names = ["date", "strike", "contractSymbol", "lastTradeDate",
-                                    "lastPrice",
-                                    "bid", "ask", "change", "percentChange", "volume", "openInterest",
-                                    "impliedVolatility", "inTheMoney", "contractSize"]
-                    call_df = option_chain[0]
-                    put_df = option_chain[1]
-                    if call_df is not None and len(call_df) > 0:
-                        if call_latest_updated_date is None or today > call_latest_updated_date:
-                            call_df["date"] = pd.to_datetime(today)
-                            call_df["strike_plus_date"] = call_df["strike"].astype("str") + "_" + today
-                            call_df.drop(["currency"], axis=1, inplace=True)
-                            call_df.set_index("strike_plus_date", inplace=True)
-                            call_df = call_df[column_names]
-                            file_path = os.path.join(call_file_dir, call_file_name)
+                            file_path = os.path.join(file_dir, file_name)
                             file_exists = os.path.exists(file_path)
-                            call_df.to_csv(file_path, mode="a", sep="\t", header=not file_exists)
+                            option_df.to_csv(file_path, mode="a", sep="\t", header=not file_exists)
                         # else:
                         # logger.warning(
-                        #     f"Call options time_label={time_label} for {symbol} call exp_date={exp_date} is already updated on {call_latest_updated_date}!")
-                    else:
-                        logger.warning(f"No CALL data for {symbol} for exp_date {exp_date}")
+                        #     f"{option_type.upper()} options time_label={time_label} for {symbol} exp_date={exp_date} is already updated on {latest_updated_date}!")
 
-                    if put_df is not None and len(put_df) > 0:
-                        if put_latest_updated_date is None or today > put_latest_updated_date:
-                            put_df["date"] = pd.to_datetime(today)
-                            put_df["strike_plus_date"] = put_df["strike"].astype("str") + "_" + today
-                            put_df.drop(["currency"], axis=1, inplace=True)
-                            put_df.set_index("strike_plus_date", inplace=True)
-                            put_df = put_df[column_names]
-                            file_path = os.path.join(put_file_dir, put_file_name)
-                            file_exists = os.path.exists(file_path)
-                            put_df.to_csv(file_path, mode="a", sep="\t", header=not file_exists)
-                        # else:
-                        # logger.warning(
-                        #     f"Put options for {symbol} call exp_date={exp_date} is already updated on {put_latest_updated_date}!")
-                    else:
-                        logger.warning(f"No PUT data for {symbol} for exp_date {exp_date}")
-
+                    if to_parquet_file:
+                        file_dir, file_name = self.get_option_chain_parquet_path(symbol, option_type, exp_date, today,
+                                                                                 mkdir=True, time_label=time_label)
+                        parquet_path = os.path.join(file_dir, file_name)
+                        if os.path.exists(parquet_path):
+                            continue
+                        parquet_df = option_df.reset_index()
+                        parquet_df = enrich_option_rows(
+                            parquet_df,
+                            symbol=symbol,
+                            option_type=option_type,
+                            expiry=exp_date,
+                            stock_history_df=stock_history_df,
+                            risk_free_df=risk_free_df,
+                            dividend_yield=dividend_yield,
+                        )
+                        parquet_df.to_parquet(parquet_path, index=False)
             logger.info(f"Option of {symbol} is updated.")
             return None
         except Exception as e:

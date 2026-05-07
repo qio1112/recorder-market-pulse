@@ -22,12 +22,13 @@ services:
       - "${MARKET_PULSE_API_PORT:-8000}:8000"
     volumes:
       - ${MARKET_PULSE_RESOURCE_PATH_SERVER}:/app/market_pulse/resources
+      - ${MARKET_PULSE_VENV_PATH_SERVER:-./market_pulse/.venv_docker}:/app/market_pulse/.venv_docker
     depends_on:
       qdrant:
         condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://localhost:8000/health').read(); sys.exit(0)"]
-      interval: 15s
+      interval: 120s
       timeout: 5s
       retries: 5
       start_period: 20s

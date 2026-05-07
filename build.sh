@@ -83,10 +83,13 @@ export $(grep -v '^#' "$ENV_FILE" | xargs)
 : "${MARKET_PULSE_RESOURCE_PATH_SERVER:?MARKET_PULSE_RESOURCE_PATH_SERVER not set in env}"
 : "${BACKEND_APP_LOG_PATH_SERVER:?BACKEND_APP_LOG_PATH_SERVER not set in env}"
 : "${BACKEND_APP_FILE_PATH_SERVER:?BACKEND_APP_FILE_PATH_SERVER not set in env}"
+MARKET_PULSE_VENV_PATH_SERVER="${MARKET_PULSE_VENV_PATH_SERVER:-${SCRIPT_DIR}/market_pulse/.venv_docker}"
+export MARKET_PULSE_VENV_PATH_SERVER
 
 echo "Ensuring resource directories exist..."
 mkdir -p "${MARKET_PULSE_RESOURCE_PATH_SERVER}/logs" \
          "${MARKET_PULSE_RESOURCE_PATH_SERVER}/qdrant" \
+         "${MARKET_PULSE_VENV_PATH_SERVER}" \
          "${BACKEND_APP_LOG_PATH_SERVER}" \
          "${BACKEND_APP_FILE_PATH_SERVER}"
 touch "${MARKET_PULSE_RESOURCE_PATH_SERVER}/logs/log.txt"
@@ -96,25 +99,27 @@ if [[ "$SKIP_BUILD" == "true" ]]; then
 else
   if [[ "$BUILD_FRONTEND" == "true" ]]; then
     echo "Building frontend from ${FRONTEND_PATH}..."
-  fi
-  if [[ ! -d "$FRONTEND_PATH" ]]; then
-    echo "Error: frontend path '$FRONTEND_PATH' does not exist." >&2
-    exit 1
-  fi
-  pushd "$FRONTEND_PATH" >/dev/null
-  npm run build
-  popd >/dev/null
+    if [[ ! -d "$FRONTEND_PATH" ]]; then
+      echo "Error: frontend path '$FRONTEND_PATH' does not exist." >&2
+      exit 1
+    fi
+    pushd "$FRONTEND_PATH" >/dev/null
+    npm run build
+    popd >/dev/null
 
-  STATIC_DIR="./recorder-backend/src/main/resources/static"
-  DIST_DIR="$FRONTEND_PATH/dist"
-  if [[ ! -d "$DIST_DIR" ]]; then
-    echo "Error: dist directory '$DIST_DIR' not found after build." >&2
-    exit 1
+    STATIC_DIR="./recorder-backend/src/main/resources/static"
+    DIST_DIR="$FRONTEND_PATH/dist"
+    if [[ ! -d "$DIST_DIR" ]]; then
+      echo "Error: dist directory '$DIST_DIR' not found after build." >&2
+      exit 1
+    fi
+    echo "Copying frontend dist to backend static directory..."
+    mkdir -p "$STATIC_DIR"
+    rm -rf "${STATIC_DIR:?}/"*
+    cp -R "$DIST_DIR"/. "$STATIC_DIR"/
+  else
+    echo "Skipping frontend build."
   fi
-  echo "Copying frontend dist to backend static directory..."
-  mkdir -p "$STATIC_DIR"
-  rm -rf "${STATIC_DIR:?}/"*
-  cp -R "$DIST_DIR"/. "$STATIC_DIR"/
 fi
 
 if [[ "$SKIP_BUILD" != "true" && "$BUILD_BACKEND" == "true" ]]; then
@@ -137,6 +142,8 @@ fi
 if [[ "$SKIP_BUILD" != "true" && "${#services_to_build[@]}" -gt 0 ]]; then
   echo "Building Docker images via docker compose for: ${services_to_build[*]} ..."
   docker compose build "${services_to_build[@]}"
+  echo "Pruning stopped containers..."
+  docker container prune -f
   echo "Pruning dangling images..."
   docker image prune -f
 elif [[ "$SKIP_BUILD" != "true" ]]; then

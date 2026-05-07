@@ -63,4 +63,5 @@ ENV/
 ### JAR files ###
 *.jar
 /market_pulse/.venv/
+/market_pulse/.venv_docker/
 /market_pulse/resources/
