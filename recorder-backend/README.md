@@ -1,290 +1,150 @@
 # Recorder Backend
 
-A comprehensive Spring Boot application that provides a RESTful API for managing records, files, and user authentication with integrated stock market data processing capabilities.
+Spring Boot backend for the Recorder app. It serves the Vue frontend in production, manages records/files/labels/users, proxies market-pulse stock and option APIs, and keeps Qdrant embeddings in sync for semantic record search.
 
-## Overview
+## Main Features
 
-The Recorder Backend is a multi-module application that combines:
-- **Record Management System**: Create, update, delete, and search records with file attachments
-- **User Authentication & Authorization**: JWT-based authentication with role-based access control
-- **File Management**: Upload and manage images and documents with size limits
-- **Stock Market Data Processing**: Python-based market data collection and analysis
-- **Email Notifications**: Automated email alerts and notifications
-- **Scheduled Tasks**: Automated stock data updates and alerts
+- JWT authentication with Spring Security.
+- User signup, login, account info, password change, and email-based password reset.
+- Role-based access with admin-only endpoints for data update jobs.
+- Record CRUD with labels, public/private visibility, metadata, alert scheduling, images, and file attachments.
+- File serving with owner/admin/public visibility checks.
+- Label lookup APIs.
+- Stock daily-history database reads and updates via Market Pulse.
+- Option symbols, expiry dates, historical option data, and expired parquet compaction via Market Pulse.
+- Qdrant-backed semantic record search. Records are upserted/deleted asynchronously when records change.
+- Scheduled stock/option data updates, status emails, and weekly expired option parquet compaction.
 
-## Features
+## Runtime Configuration
 
-### Core Features
-- **Record Management**: Create, read, update, delete records with rich content
-- **File Upload**: Support for images and documents with configurable size limits
-- **Labeling System**: Tag records with custom labels for organization
-- **Public/Private Records**: Control visibility of records
-- **Search & Filtering**: Advanced record search with pagination
-- **Alert System**: One-time and recurring alerts with email notifications
+Important environment-backed properties are in `src/main/resources/application.properties`.
 
-### Authentication & Security
-- **JWT Authentication**: Secure token-based authentication
-- **Role-Based Access Control**: User and Admin roles
-- **Password Encryption**: BCrypt password hashing
-- **CORS Configuration**: Cross-origin resource sharing support
+| Property | Description |
+| --- | --- |
+| `APP_ENV` | `DEV` uses local frontend URL; unset or `PROD` uses production frontend URL. |
+| `DEV_FRONTEND_URL` | Frontend origin for local reset-password links, default `http://localhost:8080`. |
+| `PROD_FRONTEND_URL` | Production frontend origin, default `https://bigbigbun.com`. |
+| `DB_HOST`, `DB_USER`, `DB_PASS` | MySQL connection settings. |
+| `JWT_SECRET` | Secret for JWT signing. |
+| `MAIL_*` | SMTP settings used for alerts, signup emails, and password reset emails. |
+| `BACKEND_APP_LOG_PATH` | Application log directory. |
+| `BACKEND_APP_FILE_PATH` | Uploaded file storage directory. |
+| `MARKET_PULSE_URL` | Market Pulse API base URL used by backend services. |
+| `QDRANT_COLLECTION` | Qdrant collection name, default `records_chunks`. |
 
-### Stock Market Integration
-- **Automated Data Collection**: Scheduled stock and option data updates
-- **Flexible Symbol Management**: Support for custom symbol lists
-- **Parallel Processing**: Multi-threaded data collection
-- **Market Date Handling**: Intelligent trading day detection
+`spring.jpa.hibernate.ddl-auto=update` is enabled, so new JPA tables such as `password_reset_tokens` are created automatically without dropping existing data.
 
-### Technical Features
-- **RESTful API**: Standard HTTP endpoints
-- **Database Integration**: MySQL with JPA/Hibernate
-- **File Storage**: Local file system with organized structure
-- **Logging**: Comprehensive application logging
-- **Docker Support**: Containerized deployment
-- **Email Integration**: SMTP-based email notifications
+## Build
 
-## Architecture
-
-### Technology Stack
-- **Backend**: Spring Boot 3.x, Java 17
-- **Database**: MySQL 8.x
-- **Security**: Spring Security, JWT
-- **Data Processing**: Python 3.12 with pandas, yfinance
-- **Containerization**: Docker
-- **Build Tool**: Maven
-
-### Project Structure
-```
-recorder-backend/
-├── src/main/java/com/yipeng/recorder/
-│   ├── config/           # Configuration classes
-│   ├── controller/       # REST API controllers
-│   ├── exception/        # Custom exception handlers
-│   ├── model/           # JPA entities
-│   ├── repository/      # Data access layer
-│   ├── request/         # DTOs for API requests
-│   ├── service/         # Business logic layer
-│   └── utils/           # Utility classes
-├── market_pulse/        # Python stock data processing
-│   ├── main/           # Python modules
-│   └── requirements.txt # Python dependencies
-├── src/main/resources/  # Configuration files
-└── Dockerfile          # Container configuration
-```
-
-## Prerequisites
-
-- Java 17 or higher
-- Maven 3.6+
-- MySQL 8.0+
-- Docker (for containerized deployment)
-- Python 3.12 (for stock data processing)
-
-## Environment Configuration
-
-Create a `.env.prod` file in the parent directory with the following variables:
+From the repository root:
 
 ```bash
-# Database Configuration
-DB_HOST=jdbc:mysql://localhost:3306/recorder_db
-DB_USER=your_db_user
-DB_PASS=your_db_password
-
-# Email Configuration
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USER=your_email@gmail.com
-MAIL_PASS=your_email_password
-MAIL_PROTOCOL=smtp
-MAIL_SMTP_AUTH=true
-MAIL_SMTP_STARTTLS_ENABLE=true
-
-# Application Paths
-MARKET_PULSE_PATH=/app/market_pulse
-BACKEND_APP_LOG_PATH=/app/logs
-BACKEND_APP_FILE_PATH=/app/uploaded_files
-MARKET_PULSE_PATH_SERVER=/path/on/host/market_pulse
-BACKEND_APP_LOG_PATH_SERVER=/path/on/host/logs
-BACKEND_APP_FILE_PATH_SERVER=/path/on/host/uploaded_files
-
-# Admin Configuration
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin_password
-ADMIN_EMAIL=admin@example.com
-
-# JWT Configuration
-JWT_SECRET=your_jwt_secret_key
+mvn -pl recorder-backend -am compile -DskipTests
 ```
 
-## Quick Start
+The root `build.sh` can also build frontend assets, backend JAR, Docker images, and start compose services.
 
-### Using Docker (Recommended)
+## Authentication
 
-1. **Build and run using the provided script:**
-   ```bash
-   cd recorder-backend
-   chmod +x run_recorder_backend.sh
-   ./run_recorder_backend.sh
-   ```
+All `/api/**` endpoints require JWT authentication except the public auth endpoints listed below. Send the JWT as:
 
-2. **Manual Docker commands:**
-   ```bash
-   # Build the application
-   mvn clean package -DskipTests
-   
-   # Build Docker image
-   docker build -t recorder-backend:latest .
-   
-   # Run container
-   docker run -d \
-     --name recorder-backend \
-     --restart unless-stopped \
-     --env-file ../.env.prod \
-     -p 8080:8080 \
-     recorder-backend:latest
-   ```
+```text
+Authorization: Bearer <token>
+```
 
-### Local Development
+Admin-only endpoints require the authenticated user to have the admin role.
 
-1. **Set up the database:**
-   ```sql
-   CREATE DATABASE recorder_db;
-   CREATE USER 'recorder_user'@'localhost' IDENTIFIED BY 'password';
-   GRANT ALL PRIVILEGES ON recorder_db.* TO 'recorder_user'@'localhost';
-   FLUSH PRIVILEGES;
-   ```
+## API Reference
 
-2. **Run the application:**
-   ```bash
-   mvn spring-boot:run
-   ```
+### Auth
 
-3. **Access the API:**
-   - Base URL: `http://localhost:8080`
-   - API Documentation: Available at `/api/*` endpoints
-
-## API Endpoints
-
-### Authentication
-- `POST /api/auth/authenticate` - User login
-- `POST /api/auth/signup` - User registration
+| Method | Path | Access | Description |
+| --- | --- | --- | --- |
+| `POST` | `/api/auth/authenticate` | Public | Login with username/password and return a JWT token. |
+| `POST` | `/api/auth/signup` | Public | Create a new user with default USER role and send signup email. |
+| `GET` | `/api/auth/user-info` | Authenticated | Return current user's username, email, creation time, and admin flag. |
+| `POST` | `/api/auth/change-password` | Authenticated | Change current user's password after validating current password. |
+| `POST` | `/api/auth/forgot-password` | Public | Queue a generic password reset email for an account email if it exists. |
+| `POST` | `/api/auth/reset-password` | Public | Reset password with a valid unexpired reset token. |
+| `GET` | `/reset-password?token=...` | Public | Redirect browser to the Vue hash route for password reset. |
 
 ### Records
-- `POST /api/records/create-record` - Create new record
-- `GET /api/records/record/{id}` - Get record by ID
-- `POST /api/records/update-record` - Update existing record
-- `GET /api/records/delete-record/{id}` - Delete record
-- `POST /api/records/list-records` - List records with filtering
 
-### Labels
-- `GET /api/labels` - Get all labels
-- `POST /api/labels` - Create new label
+Base path: `/api/records`
+
+| Method | Path | Access | Description |
+| --- | --- | --- | --- |
+| `POST` | `/create-record` | Authenticated | Create a record with labels, metadata, optional alert schedule, images, and files. Multipart form data. |
+| `POST` | `/update-record` | Owner/Admin | Update a record, labels, metadata, files, and alert schedule. Multipart form data. |
+| `GET` | `/record/{id}` | Visible to user | Get one record by id. Private records require owner/admin; public records are visible to authenticated users. |
+| `GET` | `/delete-record/{id}` | Owner/Admin | Delete a record and remove its Qdrant vectors if present. |
+| `POST` | `/list-records` | Authenticated | List records with filters for labels, excluded labels, title, date ranges, public flag, owner-only flag, paging, and sorting. |
+| `POST` | `/record-count-by-date-label-in-range` | Authenticated | Return daily record counts in a date range. Dates must be `yyyy-MM-dd`. |
+| `POST` | `/get-records-by-description` | Authenticated | Semantic search records through Qdrant using query text, threshold, and limit. |
 
 ### Files
-- `GET /api/files/{id}` - Download file
-- `DELETE /api/files/{id}` - Delete file
 
-### Scripts
-- `POST /api/scripts/run` - Execute Python scripts
+| Method | Path | Access | Description |
+| --- | --- | --- | --- |
+| `GET` | `/api/recfile/{fileID}` | Visible to user | Serve an uploaded file after owner/admin/public visibility validation. |
 
-## Stock Data Processing
+### Labels
 
-The application includes a Python module for stock market data processing:
+| Method | Path | Access | Description |
+| --- | --- | --- | --- |
+| `GET` | `/api/labels/all-labels` | Authenticated | Return all labels. |
+| `GET` | `/api/labels/label-exists/{label}` | Authenticated | Return whether a label exists. |
 
-### Features
-- Automated stock and option data collection
-- Support for custom symbol lists
-- Parallel processing with configurable workers
-- Market date-aware updates
+### Stock Data
 
-### Usage
-```bash
-# Update stock data for specific symbols
-python -m main.main --jobName update_stock_data --symbols AAPL,GOOGL,MSFT
+| Method | Path | Access | Description |
+| --- | --- | --- | --- |
+| `POST` | `/api/stock-data/get-daily-history` | Admin | Read stock daily history from backend database for requested symbols. |
+| `POST` | `/api/stock-data/update-daily-history-db` | Admin | Fetch stock daily history from Market Pulse and update backend database. |
+| `GET` | `/api/stock-data/update_stock_option_data` | Admin | Trigger Market Pulse stock/option update job. |
+| `GET` | `/api/stock-data/update_stock_data/help` | Admin | Return help text for stock/option update job arguments. |
 
-# Update with custom symbol file
-python -m main.main --jobName update_stock_data --symbolPath /path/to/symbols.txt
+### Option Data
 
-# Flexible data update
-python -m main.main --jobName update_stock_data_flexible --maxWorkers 4
-```
+Base path: `/api/option-data`
 
-## Configuration
+| Method | Path | Access | Description |
+| --- | --- | --- | --- |
+| `GET` | `/symbols` | Authenticated | Return option symbols available in Market Pulse parquet data. |
+| `POST` | `/expiries` | Authenticated | Return expiry dates for a symbol. Request body includes `symbol`. |
+| `POST` | `/history` | Authenticated | Return option history for `symbol`, `expiry`, and `optionType`. |
+| `GET` | `/combine-expired-parquet` | Admin | Trigger Market Pulse compaction of expired option parquet files. |
 
-### Application Properties
-Key configuration options in `application.properties`:
+## Market Pulse and Qdrant Integration
 
-- `spring.jpa.hibernate.ddl-auto=update` - Database schema management
-- `recfile.upload.dir` - File upload directory
-- `recfile.image.file.size=5` - Image file size limit (MB)
-- `recfile.regular.file.size=5` - Document file size limit (MB)
-- `logging.file.name` - Application log file location
+`MarketPulseApiService` calls the Python Market Pulse service for:
 
-### File Upload Limits
-- Maximum file size: 5MB per file
-- Maximum request size: 10MB
-- Supported file types: Images and documents
+- stock daily history
+- stock/option update jobs
+- option symbols, expiries, and history
+- expired option parquet compaction
 
-## Monitoring & Logs
+`QdrantEmbeddingService` calls Market Pulse `/qdrant` endpoints for:
 
-### Application Logs
-- Location: Configured via `APP_LOG_PATH` environment variable
-- Default: `logs/application.log`
-- Log levels: Configurable per package
+- upserting vectors when records are created or updated
+- deleting vectors when records are deleted
+- querying similar records for semantic search
+- checking whether vectors exist for a record
 
-### Docker Logs
-```bash
-# View application logs
-docker logs -f recorder-backend
+## Scheduled Jobs
 
-# View specific log files
-docker exec recorder-backend cat /app/logs/application.log
-```
+Defined in `CronService`.
 
-## Security Considerations
+| Schedule | Job |
+| --- | --- |
+| Daily `10:05`, `13:30`, `16:30`, `21:00` | Update option data through Market Pulse. |
+| Daily `16:30`, `21:00` | Update stock daily history database. |
+| Daily `08:00`, `12:00`, `16:00`, `20:00`, `23:00` | Send server status email to admin. |
+| Friday `21:30` | Combine expired option parquet files through Market Pulse. |
 
-- JWT tokens for authentication
-- Password encryption using BCrypt
-- Role-based access control
-- File upload validation
-- CORS configuration for web clients
+## Notes
 
-## Troubleshooting
-
-### Common Issues
-
-1. **Database Connection Failed**
-   - Verify MySQL is running
-   - Check database credentials in `.env.prod`
-   - Ensure database exists
-
-2. **File Upload Errors**
-   - Check directory permissions
-   - Verify file size limits
-   - Ensure sufficient disk space
-
-3. **Python Module Errors**
-   - Verify Python 3.12 installation
-   - Check `requirements.txt` dependencies
-   - Ensure virtual environment is activated
-
-### Debug Mode
-Enable debug logging by setting:
-```properties
-logging.level.com.yipeng.recorder=DEBUG
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## License
-
-This project is proprietary software. All rights reserved.
-
-## Support
-
-For support and questions, please contact the development team or create an issue in the project repository. 
+- Password reset tokens are stored as SHA-256 hashes and expire after 30 minutes.
+- Password reset API responses are generic to avoid confirming whether an email exists.
+- Password reset emails are queued asynchronously so SMTP timing is not exposed to the frontend.
+- Uploaded image and file size limits are configured by `recfile.image.file.size` and `recfile.regular.file.size`.
