@@ -513,7 +513,7 @@ export default defineComponent({
   color: #b42318;
   background: #fff5f5;
   border: 1px solid #f2b8b5;
-  border-radius: 7px;
+  border-radius: 4px;
   padding: 0.5rem 0.65rem;
   font-size: 0.84rem;
   margin-top: 0.5rem;
@@ -521,7 +521,7 @@ export default defineComponent({
 
 .selection-panel {
   border: 1px solid #d9e2ec;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #ffffff;
   padding: 0.75rem;
 }
@@ -573,7 +573,7 @@ export default defineComponent({
 select {
   min-width: 10.5rem;
   border: 1px solid #d9e2ec;
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 0.42rem 0.55rem;
   background: #ffffff;
   color: #486581;
@@ -595,7 +595,7 @@ select:disabled {
 .primary,
 .secondary {
   min-height: 2.15rem;
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 0.4rem 0.65rem;
   font: inherit;
   font-size: 0.8rem;

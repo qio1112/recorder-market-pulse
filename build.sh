@@ -89,6 +89,7 @@ export MARKET_PULSE_VENV_PATH_SERVER
 echo "Ensuring resource directories exist..."
 mkdir -p "${MARKET_PULSE_RESOURCE_PATH_SERVER}/logs" \
          "${MARKET_PULSE_RESOURCE_PATH_SERVER}/qdrant" \
+         "${MARKET_PULSE_RESOURCE_PATH_SERVER}/models/sentence_transformers" \
          "${MARKET_PULSE_VENV_PATH_SERVER}" \
          "${BACKEND_APP_LOG_PATH_SERVER}" \
          "${BACKEND_APP_FILE_PATH_SERVER}"

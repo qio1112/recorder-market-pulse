@@ -39,7 +39,7 @@ a {
   border: 1px solid #00768d;
   color: white;
   cursor: pointer;
-  border-radius: 5px;
+  border-radius: 4px;
   margin-right: 0rem;
   display: inline-block;
 }

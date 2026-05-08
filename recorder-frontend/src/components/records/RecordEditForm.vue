@@ -342,7 +342,7 @@ export default {
   gap: 1.15rem;
   padding: 1.25rem;
   border: 1px solid #d9e2ec;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #ffffff;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
 }
@@ -357,14 +357,14 @@ export default {
 .file-removal-field {
   padding: 0.8rem;
   border: 1px solid #e5e8ed;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #f8fafc;
 }
 
 .alert-field {
   padding: 0.8rem;
   border: 1px solid #e5e8ed;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #f8fafc;
 }
 
@@ -398,7 +398,7 @@ export default {
   gap: 0.3rem;
   padding: 0.5rem;
   border: 1px solid #e5e8ed;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #f8fafc;
 }
 
@@ -406,7 +406,7 @@ export default {
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: 4px;
   background: #fff;
 }
 
@@ -435,7 +435,7 @@ export default {
   width: 1.6rem;
   height: 1.6rem;
   padding: 0;
-  border-radius: 999px;
+  border-radius: 4px;
   font-size: 1rem;
   line-height: 1;
 }
@@ -490,7 +490,7 @@ select {
   box-sizing: border-box;
   padding: 0.65rem 0.75rem;
   border: 1px solid #cbd5e1;
-  border-radius: 7px;
+  border-radius: 4px;
   background: #ffffff;
   color: #1f2933;
   font: inherit;
@@ -561,7 +561,7 @@ input[type="file"] {
 .add-btn {
   flex: 0 0 auto;
   padding: 0.6rem 0.9rem;
-  border-radius: 7px;
+  border-radius: 4px;
   border: 1px solid #b8c4d4;
   background: #f8fafc;
   color: #1f2933;
@@ -585,7 +585,7 @@ input[type="file"] {
   align-items: center;
   gap: 0.4rem;
   padding: 0.3rem 0.55rem;
-  border-radius: 999px;
+  border-radius: 4px;
   background: #eef6ff;
   color: #0f4c81;
   border: 1px solid #cfe7ff;
@@ -621,7 +621,7 @@ input[type="file"] {
   border: 1px solid #cfd7e2;
   background: #fdecea;
   color: #c0392b;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
   width: 32px;
   height: 32px;
@@ -641,7 +641,7 @@ input[type="file"] {
   gap: 0.75rem;
   padding: 0.65rem 0.75rem;
   border: 1px solid #e5e8ed;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #f8fafc;
   font-size: 0.85rem;
 }
@@ -664,7 +664,7 @@ input[type="file"] {
   width: 1.8rem;
   height: 1.8rem;
   padding: 0;
-  border-radius: 6px;
+  border-radius: 4px;
   font-size: 1rem;
   line-height: 1;
 }
@@ -695,7 +695,7 @@ input[type="file"] {
 .form-actions :deep(.primary) {
   min-width: 10rem;
   padding: 0.65rem 1rem;
-  border-radius: 7px;
+  border-radius: 4px;
   border-color: #0f6abf;
   background: #0f6abf;
   font-size: 0.9rem;

@@ -9,7 +9,7 @@ Functions:
 """
 
 from __future__ import annotations
-
+import os
 import uuid
 from typing import Any, Optional
 
@@ -25,6 +25,7 @@ from qdrant_client.http.models import (
     FilterSelector,
 )
 from sentence_transformers import SentenceTransformer
+from main.utils.path_utils import get_resources_path
 
 try:
     import torch
@@ -34,6 +35,7 @@ except ImportError:  # pragma: no cover - optional dependency
 QDRANT_URL = "http://qdrant:6333"
 COLLECTION = "records_chunks"
 EMBED_MODEL_NAME = "BAAI/bge-m3"
+EMBED_MODEL_CACHE_DIR = get_resources_path("models", "sentence_transformers")
 
 # Chunking settings
 CHUNK_WORDS = 60
@@ -131,6 +133,7 @@ def get_qdrant_client() -> QdrantClient:
 
 
 def get_embed_model() -> SentenceTransformer:
+    os.makedirs(EMBED_MODEL_CACHE_DIR, exist_ok=True)
     device = "cpu"
     if torch:
         try:
@@ -140,7 +143,11 @@ def get_embed_model() -> SentenceTransformer:
                 device = "cuda"
         except Exception:
             device = "cpu"
-    return SentenceTransformer(EMBED_MODEL_NAME, device=device)
+    return SentenceTransformer(
+        EMBED_MODEL_NAME,
+        device=device,
+        cache_folder=EMBED_MODEL_CACHE_DIR,
+    )
 
 
 def search_record_ids_by_similarity(

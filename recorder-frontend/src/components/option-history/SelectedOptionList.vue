@@ -37,7 +37,7 @@ export default {
 <style scoped>
 .selected-list {
   border: 1px solid #d9e2ec;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #ffffff;
   padding: 0.75rem;
 }
@@ -69,7 +69,7 @@ h2 {
 .row {
   min-height: 2.25rem;
   border: 1px solid #e5e8ed;
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 0.35rem 0.45rem;
   display: flex;
   align-items: center;
@@ -88,7 +88,7 @@ h2 {
 
 .delete {
   border: 1px solid #f2b8b5;
-  border-radius: 6px;
+  border-radius: 4px;
   background: #fff5f5;
   color: #b42318;
   padding: 0.3rem 0.5rem;

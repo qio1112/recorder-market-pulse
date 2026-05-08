@@ -86,7 +86,7 @@ h1 {
 .muted {
   padding: 1rem;
   border: 1px solid #d9e2ec;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #ffffff;
   color: #52606d;
 }

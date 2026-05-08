@@ -43,7 +43,7 @@ export default {
 <style scoped>
 .dashboard-item {
   border: 1px solid #e5e8ed;
-  border-radius: 10px;
+  border-radius: 4px;
   background: #fff;
   padding: 0.75rem;
   box-shadow: 0 6px 18px rgba(16, 42, 67, 0.05);

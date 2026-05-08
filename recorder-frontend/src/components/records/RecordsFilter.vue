@@ -196,7 +196,7 @@ export default {
   gap: 0.9rem;
   padding: 1rem;
   border: 1px solid #cfd7e2;
-  border-radius: 10px;
+  border-radius: 4px;
   background: #ffffff;
   width: 100%;
   max-width: none;
@@ -221,7 +221,7 @@ select {
   width: 100%;
   box-sizing: border-box;
   padding: 0.55rem 0.65rem;
-  border-radius: 7px;
+  border-radius: 4px;
   border: 1px solid #cfd7e2;
   font-size: 0.75rem;
 }
@@ -260,7 +260,7 @@ select {
 
 .add-btn {
   padding: 0.55rem 0.9rem;
-  border-radius: 7px;
+  border-radius: 4px;
   border: 1px solid #cfd7e2;
   background: #f7fafc;
   cursor: pointer;
@@ -278,7 +278,7 @@ select {
   align-items: center;
   gap: 0.4rem;
   padding: 0.3rem 0.55rem;
-  border-radius: 999px;
+  border-radius: 4px;
   background: #e5f3ff;
   color: #0f4c81;
   border: 1px solid #cde7ff;
@@ -333,7 +333,7 @@ select {
 .primary,
 .secondary {
   padding: 0.6rem 0.9rem;
-  border-radius: 7px;
+  border-radius: 4px;
   cursor: pointer;
   border: 1px solid transparent;
   font-size: 0.75rem;

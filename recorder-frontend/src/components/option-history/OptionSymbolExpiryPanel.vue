@@ -67,7 +67,7 @@ export default {
 <style scoped>
 .panel {
   border: 1px solid #d9e2ec;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #ffffff;
   padding: 1rem;
   display: flex;
@@ -93,7 +93,7 @@ export default {
 select {
   min-width: 12rem;
   border: 1px solid #bcccdc;
-  border-radius: 7px;
+  border-radius: 4px;
   padding: 0.55rem 0.65rem;
   background: #ffffff;
   color: #102a43;
@@ -126,7 +126,7 @@ h2 {
 
 .expiry-item {
   border: 1px solid #d9e2ec;
-  border-radius: 7px;
+  border-radius: 4px;
   background: #f8fafc;
   color: #243b53;
   padding: 0.55rem 0.65rem;

@@ -252,7 +252,7 @@ export default {
   margin: 1.5rem auto;
   padding: 1rem 1.25rem;
   border: 1px solid #e5e8ed;
-  border-radius: 10px;
+  border-radius: 4px;
   background: #fff;
   display: flex;
   flex-direction: column;
@@ -274,7 +274,7 @@ export default {
   background: #e5f3ff;
   color: #0f4c81;
   padding: 0.25rem 0.6rem;
-  border-radius: 999px;
+  border-radius: 4px;
   font-size: 0.9rem;
 }
 
@@ -312,7 +312,7 @@ p {
 
 .metadata-table {
   border: 1px solid #e5e8ed;
-  border-radius: 8px;
+  border-radius: 4px;
   max-height: 200px;
   overflow: auto;
 }
@@ -374,7 +374,7 @@ p {
 
 .file-card {
   border: 1px solid #e5e8ed;
-  border-radius: 10px;
+  border-radius: 4px;
   padding: 0.65rem;
   background: #f7fafc;
   display: flex;
@@ -404,7 +404,7 @@ p {
   width: 100%;
   max-height: 220px;
   object-fit: contain;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #fff;
 }
 
@@ -415,7 +415,7 @@ p {
 
 .file-download button {
   padding: 0.5rem 0.9rem;
-  border-radius: 7px;
+  border-radius: 4px;
   border: 1px solid #cfd7e2;
   background: #0f4c81;
   color: #fff;

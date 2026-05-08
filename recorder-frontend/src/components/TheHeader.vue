@@ -5,7 +5,7 @@
       <li><router-link to="/records">Records</router-link></li>
       <li><router-link to="/calendar">Calendar</router-link></li>
       <li><router-link to="/add-record">Add Record</router-link></li>
-      <li class="nav-dropdown" @mouseleave="closeToolsMenu">
+      <li class="nav-dropdown" @mouseenter="openToolsMenu" @mouseleave="scheduleCloseToolsMenu">
         <button
           type="button"
           class="nav-action nav-dropdown-trigger"
@@ -20,7 +20,8 @@
         <ul
           v-show="isToolsMenuOpen"
           class="dropdown-menu"
-          @mouseleave="closeToolsMenu"
+          @mouseenter="openToolsMenu"
+          @mouseleave="scheduleCloseToolsMenu"
         >
           <li>
             <router-link to="/tools/portfolio">
@@ -52,7 +53,8 @@
 export default {
   data() {
     return {
-      isToolsMenuOpen: false
+      isToolsMenuOpen: false,
+      toolsMenuCloseTimer: null
     }
   },
   computed: {
@@ -65,10 +67,27 @@ export default {
   },
   methods: {
     openToolsMenu() {
+      if (this.toolsMenuCloseTimer) {
+        clearTimeout(this.toolsMenuCloseTimer);
+        this.toolsMenuCloseTimer = null;
+      }
       this.isToolsMenuOpen = true;
     },
     closeToolsMenu() {
+      if (this.toolsMenuCloseTimer) {
+        clearTimeout(this.toolsMenuCloseTimer);
+        this.toolsMenuCloseTimer = null;
+      }
       this.isToolsMenuOpen = false;
+    },
+    scheduleCloseToolsMenu() {
+      if (this.toolsMenuCloseTimer) {
+        clearTimeout(this.toolsMenuCloseTimer);
+      }
+      this.toolsMenuCloseTimer = setTimeout(() => {
+        this.isToolsMenuOpen = false;
+        this.toolsMenuCloseTimer = null;
+      }, 180);
     },
     toggleToolsMenu() {
       this.isToolsMenuOpen = !this.isToolsMenuOpen;
@@ -102,7 +121,7 @@ header a {
   display: inline-block;
   padding: 0.55rem 0.8rem;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 4px;
   font-size: 0.9rem;
   font-weight: 600;
 }
@@ -119,7 +138,7 @@ header a {
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  border-radius: 7px;
+  border-radius: 4px;
 }
 
 a:active,
@@ -143,7 +162,7 @@ h1 a {
   color: #0f4c81;
   margin: 0;
   padding: 0.45rem 0.6rem;
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 1.15rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -199,21 +218,21 @@ li {
 .dropdown-menu {
   position: absolute;
   top: calc(100% + 0.45rem);
-  left: 0;
+  right: 0;
   z-index: 20;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.2rem;
-  min-width: 17rem;
+  gap: 0.12rem;
+  width: min(13.5rem, calc(100vw - 1.5rem));
   margin: 0;
   margin-left: 0;
-  padding: 0.45rem;
+  padding: 0.35rem;
   border: 1px solid #d9e2ec;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #ffffff;
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
-  overflow: visible;
+  overflow: hidden;
 }
 
 .dropdown-menu::before {
@@ -235,20 +254,21 @@ li {
   gap: 0.15rem;
   width: 100%;
   box-sizing: border-box;
-  padding: 0.7rem 0.8rem;
-  white-space: nowrap;
+  padding: 0.5rem 0.55rem;
+  white-space: normal;
 }
 
 .tool-title {
   color: inherit;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 700;
 }
 
 .tool-description {
   color: #64748b;
-  font-size: 0.76rem;
+  font-size: 0.68rem;
   font-weight: 500;
+  line-height: 1.25;
 }
 
 @media (min-width: 640px) {
@@ -263,22 +283,56 @@ li {
 
 @media (max-width: 639px) {
   header {
-    align-items: flex-start;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 0.65rem;
   }
 
   header ul {
+    flex-wrap: nowrap;
     overflow-x: auto;
+    width: 100%;
+    padding-bottom: 0.15rem;
+    scrollbar-width: none;
+  }
+
+  header ul::-webkit-scrollbar {
+    display: none;
+  }
+
+  header a,
+  .nav-action {
+    padding: 0.42rem 0.55rem;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+
+  h1 a {
+    padding: 0.35rem 0.45rem;
+    font-size: 1rem;
   }
 
   .dropdown-menu {
-    position: static;
-    width: 100%;
-    margin-top: 0.25rem;
-    box-shadow: none;
+    position: fixed;
+    top: 3.2rem;
+    right: 0.55rem;
+    left: auto;
+    width: min(11.5rem, calc(100vw - 1.1rem));
+    margin-top: 0;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
   }
 
   .dropdown-menu a {
+    padding: 0.45rem 0.5rem;
     white-space: normal;
+  }
+
+  .tool-title {
+    font-size: 0.76rem;
+  }
+
+  .tool-description {
+    font-size: 0.64rem;
   }
 }
 </style>

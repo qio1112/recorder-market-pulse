@@ -329,7 +329,7 @@ export default {
 <style scoped>
 .position-list-card {
   border: 1px solid #cfd7e2;
-  border-radius: 12px;
+  border-radius: 4px;
   background: #ffffff;
   padding: 1rem;
   box-shadow: 0 6px 18px rgba(15, 76, 129, 0.05);
@@ -360,7 +360,7 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 0.25rem 0.6rem;
-  border-radius: 999px;
+  border-radius: 4px;
   background: #e5f3ff;
   color: #0f4c81;
   border: 1px solid #cde7ff;
@@ -381,7 +381,7 @@ export default {
 
 .composer {
   padding: 0.85rem;
-  border-radius: 10px;
+  border-radius: 4px;
   background: #f7fafc;
   border: 1px solid #d9e2ec;
 }
@@ -407,7 +407,7 @@ input,
 select {
   width: 100%;
   padding: 0.48rem 0.6rem;
-  border-radius: 7px;
+  border-radius: 4px;
   border: 1px solid #cfd7e2;
   font-size: 0.8rem;
   background: #ffffff;
@@ -441,7 +441,7 @@ input:disabled {
 
 .primary-btn {
   padding: 0.5rem 0.85rem;
-  border-radius: 7px;
+  border-radius: 4px;
   border: 1px solid #00768d;
   background: #00768d;
   color: #ffffff;
@@ -457,7 +457,7 @@ input:disabled {
 
 .secondary-btn {
   padding: 0.5rem 0.85rem;
-  border-radius: 7px;
+  border-radius: 4px;
   border: 1px solid #cfd7e2;
   background: #f7fafc;
   color: #0f4c81;
@@ -504,7 +504,7 @@ input:disabled {
   margin-top: 0.8rem;
   padding: 1rem 0.85rem;
   border: 1px dashed #cfd7e2;
-  border-radius: 10px;
+  border-radius: 4px;
   color: #52606d;
   background: #fbfdff;
   text-align: center;

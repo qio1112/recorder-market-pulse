@@ -176,7 +176,7 @@ export default {
   background: #e5f3ff;
   color: #0f4c81;
   padding: 0.25rem 0.55rem;
-  border-radius: 999px;
+  border-radius: 4px;
   font-size: 0.85rem;
   white-space: nowrap;
 }
@@ -192,7 +192,7 @@ export default {
   height: 64px;
   padding: 0;
   border: 1px solid #e5e8ed;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #f6f9fc;
   cursor: zoom-in;
   overflow: hidden;

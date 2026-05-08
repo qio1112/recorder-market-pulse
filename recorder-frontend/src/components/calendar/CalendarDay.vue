@@ -88,7 +88,7 @@ export default {
   height: 100%;
   width: 100%;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 4px;
   background: linear-gradient(180deg, #ffffff 0%, #f7fafc 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
   transition: transform 0.12s ease, box-shadow 0.12s ease;

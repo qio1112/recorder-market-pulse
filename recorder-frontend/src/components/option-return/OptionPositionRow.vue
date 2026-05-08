@@ -170,7 +170,7 @@ select {
   width: 100%;
   min-width: 90px;
   padding: 0.45rem 0.55rem;
-  border-radius: 7px;
+  border-radius: 4px;
   border: 1px solid #cfd7e2;
   font-size: 0.78rem;
   background: #ffffff;
@@ -196,7 +196,7 @@ input:disabled {
 
 .action-btn {
   padding: 0.42rem 0.7rem;
-  border-radius: 7px;
+  border-radius: 4px;
   border: 1px solid transparent;
   cursor: pointer;
   font-size: 0.74rem;

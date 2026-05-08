@@ -68,7 +68,7 @@ export default {
 
 .card {
   border: 1px solid #e5e8ed;
-  border-radius: 10px;
+  border-radius: 4px;
   background: #fff;
   padding: 1rem 1.25rem;
   box-shadow: 0 6px 18px rgba(16, 42, 67, 0.05);
@@ -90,7 +90,7 @@ export default {
   gap: 0.2rem;
   padding: 0.65rem 0.75rem;
   border: 1px solid #e5e8ed;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #f9fbfd;
 }
 
@@ -109,7 +109,7 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 0.25rem 0.6rem;
-  border-radius: 999px;
+  border-radius: 4px;
   font-weight: 700;
   font-size: 0.9rem;
 }

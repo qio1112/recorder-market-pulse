@@ -310,7 +310,7 @@ export default defineComponent({
 .chart-card {
   margin-top: 0.9rem;
   border: 1px solid #cfd7e2;
-  border-radius: 12px;
+  border-radius: 4px;
   background: #ffffff;
   padding: 0.9rem;
   box-shadow: 0 6px 18px rgba(15, 76, 129, 0.04);
@@ -338,7 +338,7 @@ export default defineComponent({
 
 .empty-chart {
   padding: 1rem 0.85rem;
-  border-radius: 10px;
+  border-radius: 4px;
   background: #fbfdff;
   border: 1px dashed #d9e2ec;
   color: #52606d;

@@ -122,7 +122,7 @@ export default {
   grid-template-columns: 1fr;
   gap: 0;
   border: 1px solid #e5e8ed;
-  border-radius: 10px;
+  border-radius: 4px;
   overflow: hidden;
 }
 
@@ -145,7 +145,7 @@ export default {
 
 .pagination button {
   padding: 0.5rem 0.9rem;
-  border-radius: 7px;
+  border-radius: 4px;
   border: 1px solid #cfd7e2;
   background: #f7fafc;
   cursor: pointer;

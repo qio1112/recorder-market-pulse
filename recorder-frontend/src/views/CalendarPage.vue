@@ -263,7 +263,7 @@ export default {
 
 .calendar-month-input {
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: 4px;
   border: 1px solid #cbd5e1;
   background: #fff;
   font-size: 14px;
@@ -272,7 +272,7 @@ export default {
 
 .calendar-nav {
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #1f2937;
   color: #fff;
   border: none;
@@ -294,7 +294,7 @@ export default {
 .calendar-page__body {
   flex: 1;
   background: #fff;
-  border-radius: 14px;
+  border-radius: 4px;
   padding: 8px;
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
   min-height: 560px;
@@ -303,7 +303,7 @@ export default {
 :deep(.fc) {
   background: transparent;
   padding: 6px;
-  border-radius: 10px;
+  border-radius: 4px;
   box-shadow: none;
 }
 

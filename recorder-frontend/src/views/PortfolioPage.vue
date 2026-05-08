@@ -415,7 +415,7 @@ export default defineComponent({
 
 .range-select {
   border: 1px solid #d9e2ec;
-  border-radius: 6px;
+  border-radius: 4px;
   color: #486581;
   background: #fff;
   padding: 0.42rem 0.55rem;
@@ -451,7 +451,7 @@ export default defineComponent({
 
 :deep(.dashboard-item) {
   border-color: #d9e2ec;
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 0.65rem;
   gap: 0.4rem;
 }
@@ -468,7 +468,7 @@ export default defineComponent({
 
 .chart-card {
   border: 1px solid #e5e8ed;
-  border-radius: 10px;
+  border-radius: 4px;
   background: #fff;
   padding: 0.75rem;
   box-shadow: 0 6px 18px rgba(16, 42, 67, 0.05);

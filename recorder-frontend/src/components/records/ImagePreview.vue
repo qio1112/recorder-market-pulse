@@ -76,7 +76,7 @@ export default {
   max-height: 90vh;
   padding: 1rem;
   border: 1px solid #d9e2ec;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #ffffff;
   box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
 }
@@ -85,7 +85,7 @@ export default {
   width: 100%;
   max-height: calc(90vh - 6rem);
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: 4px;
   background: #f8fafc;
 }
 
@@ -99,7 +99,7 @@ export default {
   height: 2rem;
   padding: 0;
   border: 1px solid #cbd5e1;
-  border-radius: 999px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.92);
   color: #1f2933;
   cursor: pointer;

@@ -67,7 +67,7 @@ export default {
 .login-card {
   width: min(440px, 96vw);
   background: #ffffff;
-  border-radius: 14px;
+  border-radius: 4px;
   padding: 2rem 1.75rem;
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.22);
   border: 1px solid #e4ecf3;
@@ -113,7 +113,7 @@ label {
 
 input {
   width: 100%;
-  border-radius: 10px;
+  border-radius: 4px;
   border: 1px solid #c7d5e4;
   padding: 0.85rem 1rem;
   font-size: 1rem;
@@ -136,13 +136,13 @@ input:focus {
   background: rgba(214, 64, 69, 0.08);
   border: 1px solid rgba(214, 64, 69, 0.18);
   padding: 0.65rem 0.75rem;
-  border-radius: 10px;
+  border-radius: 4px;
 }
 
 :deep(.primary) {
   width: 100%;
   padding: 0.9rem 1rem;
-  border-radius: 10px;
+  border-radius: 4px;
   border: none;
   font-weight: 700;
   letter-spacing: 0.01em;
