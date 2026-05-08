@@ -60,4 +60,27 @@ export async function getUserInfo() {
     return null;
   }
 }
+
+export async function changePassword(currentPassword, newPassword) {
+  const response = await http.post('/auth/change-password', {
+    currentPassword,
+    newPassword,
+  });
+  return response.data;
+}
+
+export async function requestPasswordReset(email) {
+  const response = await http.post('/auth/forgot-password', {
+    email,
+  });
+  return response.data;
+}
+
+export async function resetPassword(token, newPassword) {
+  const response = await http.post('/auth/reset-password', {
+    token,
+    newPassword,
+  });
+  return response.data;
+}
   

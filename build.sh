@@ -85,6 +85,7 @@ export $(grep -v '^#' "$ENV_FILE" | xargs)
 : "${BACKEND_APP_FILE_PATH_SERVER:?BACKEND_APP_FILE_PATH_SERVER not set in env}"
 MARKET_PULSE_VENV_PATH_SERVER="${MARKET_PULSE_VENV_PATH_SERVER:-${SCRIPT_DIR}/market_pulse/.venv_docker}"
 export MARKET_PULSE_VENV_PATH_SERVER
+export VUE_APP_APP_ENV="${APP_ENV:-PROD}"
 
 echo "Ensuring resource directories exist..."
 mkdir -p "${MARKET_PULSE_RESOURCE_PATH_SERVER}/logs" \

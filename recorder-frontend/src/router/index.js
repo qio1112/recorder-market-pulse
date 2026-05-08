@@ -1,5 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import LoginPage from '../views/LoginPage.vue'
+import ForgotPasswordPage from '../views/ForgotPasswordPage.vue'
+import ResetPasswordPage from '../views/ResetPasswordPage.vue'
 import RecordsPage from '../views/RecordsPage.vue'
 import RecordDetail from '../views/RecordDetail.vue'
 import UserAccountInfo from '../views/UserAccountInfo.vue'
@@ -35,6 +37,8 @@ const router = createRouter({
     { path: '/tools/option-history', component: OptionHistoryPage, meta: { requiresAuth: true } },
     { path: '/account', component: UserAccountInfo, meta: { requiresAuth: true } },
     { path: '/login', component: LoginPage, meta: { requiresUnauth: true }},
+    { path: '/forgot-password', component: ForgotPasswordPage, meta: { requiresUnauth: true }},
+    { path: '/reset-password', component: ResetPasswordPage, meta: { requiresUnauth: true }},
     { path: '/signup', component: null, meta: { requiresUnauth: true }},
     { path: '/:notFound(.*)', component: PageNotFound }
   ]

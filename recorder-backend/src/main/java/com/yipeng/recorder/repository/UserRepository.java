@@ -15,9 +15,10 @@ import java.util.Set;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
 
+    Optional<User> findByEmail(String email);
+
     boolean existsByUsername(String username);
 
     @Query("SELECT u.roles FROM User u WHERE u.username = :username")
     Set<Role> findRolesByUsername(@Param("username") String username);
 }
-

@@ -2,6 +2,7 @@ package com.yipeng.recorder.config;
 
 import com.yipeng.recorder.service.JwtRequestFilter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -20,6 +21,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -29,6 +31,12 @@ public class SecurityConfig {
 
     private final JwtRequestFilter jwtRequestFilter;
     private final UserDetailsService userDetailsService;
+
+    @Value("${app.frontend.dev-url:http://localhost:8080}")
+    private String devFrontendUrl;
+
+    @Value("${app.frontend.prod-url:https://bigbigbun.com}")
+    private String prodFrontendUrl;
 
     @Autowired
     public SecurityConfig(JwtRequestFilter jwtRequestFilter, UserDetailsService userDetailsService) {
@@ -43,7 +51,13 @@ public class SecurityConfig {
 //            .cors(AbstractHttpConfigurer::disable)
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                    .requestMatchers("/api/auth/**").permitAll()
+                    .requestMatchers(
+                            "/api/auth/authenticate",
+                            "/api/auth/signup",
+                            "/api/auth/forgot-password",
+                            "/api/auth/reset-password"
+                    ).permitAll()
+                    .requestMatchers("/api/auth/user-info", "/api/auth/change-password").authenticated()
                     .requestMatchers("/api/**").authenticated()
                     .requestMatchers("/api/run-script/**").hasRole("ADMIN")
                     .anyRequest().permitAll()
@@ -61,12 +75,13 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         // IMPORTANT: no trailing slashes!
-        configuration.setAllowedOrigins(Arrays.asList(
+        List<String> allowedOrigins = new ArrayList<>(Arrays.asList(
+                devFrontendUrl,
+                prodFrontendUrl,
                 "http://localhost:8081",
-                "http://localhost:8080",
-                "https://192.168.1.162",
-                "https://bigbigbun.com"
+                "https://192.168.1.162"
         ));
+        configuration.setAllowedOrigins(allowedOrigins.stream().distinct().toList());
 
         configuration.setAllowedMethods(Arrays.asList(
                 "GET", "POST", "PUT", "DELETE", "OPTIONS"

@@ -1,12 +1,12 @@
 package com.yipeng.recorder.service;
 
 import com.yipeng.recorder.exception.ForbiddenException;
+import com.yipeng.recorder.exception.InvalidRequestException;
 import com.yipeng.recorder.model.Record;
 import com.yipeng.recorder.model.User;
 import com.yipeng.recorder.repository.UserRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -38,6 +38,20 @@ public class UserService {
         return userRepository.findByUsername(username).isPresent();
     }
 
+    public void changePassword(User user, String currentPassword, String newPassword) {
+        if (currentPassword == null || currentPassword.isBlank()) {
+            throw new InvalidRequestException("Current password is required.");
+        }
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new InvalidRequestException("Current password is incorrect.");
+        }
+        if (newPassword == null || newPassword.isBlank() || newPassword.length() < 8) {
+            throw new InvalidRequestException("New password must be at least 8 characters long.");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
     public User findUserFromAuthentication() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
@@ -64,4 +78,3 @@ public class UserService {
         return user.isAdmin() || resourceOwner.getId().equals(user.getId());
     }
 }
-

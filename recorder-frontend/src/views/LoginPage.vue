@@ -17,6 +17,7 @@
       <p class="error" v-if="!isFormValid">Username and password cannot be empty.</p>
       <p class="error" v-if="!isAuthenticationValid">Invalid user name or password.</p>
       <base-button mode="primary">Login</base-button>
+      <router-link class="forgot-link" to="/forgot-password">Forgot password?</router-link>
     </form>
   </section>
 </template>
@@ -155,5 +156,17 @@ input:focus {
 :deep(.primary:active) {
   box-shadow: 0 12px 28px rgba(61, 167, 255, 0.3);
   filter: brightness(1.01);
+}
+
+.forgot-link {
+  color: #0f4c81;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+.forgot-link:hover {
+  text-decoration: underline;
 }
 </style>

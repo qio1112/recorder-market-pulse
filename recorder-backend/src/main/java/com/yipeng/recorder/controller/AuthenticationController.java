@@ -6,7 +6,11 @@ import com.yipeng.recorder.model.User;
 import com.yipeng.recorder.repository.RoleRepository;
 import com.yipeng.recorder.repository.UserRepository;
 import com.yipeng.recorder.request.AuthenticationRequest;
+import com.yipeng.recorder.request.ChangePasswordRequest;
+import com.yipeng.recorder.request.ForgotPasswordRequest;
+import com.yipeng.recorder.request.ResetPasswordRequest;
 import com.yipeng.recorder.request.SignUpRequest;
+import com.yipeng.recorder.service.PasswordResetService;
 import com.yipeng.recorder.service.SendEmailService;
 import com.yipeng.recorder.service.UserService;
 import com.yipeng.recorder.utils.JwtUtil;
@@ -48,6 +52,8 @@ public class AuthenticationController {
 
     private final SendEmailService sendEmailService;
 
+    private final PasswordResetService passwordResetService;
+
 
     @Autowired
     public AuthenticationController(AuthenticationManager authenticationManager,
@@ -57,7 +63,8 @@ public class AuthenticationController {
                                     UserRepository userRepository,
                                     PasswordEncoder passwordEncoder,
                                     RoleRepository roleRepository,
-                                    SendEmailService sendEmailService) {
+                                    SendEmailService sendEmailService,
+                                    PasswordResetService passwordResetService) {
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
         this.userDetailsService = userDetailsService;
@@ -66,6 +73,7 @@ public class AuthenticationController {
         this.passwordEncoder = passwordEncoder;
         this.roleRepository = roleRepository;
         this.sendEmailService = sendEmailService;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/authenticate")
@@ -120,5 +128,31 @@ public class AuthenticationController {
         response.put("isAdmin", String.valueOf(user.isAdmin()));
         return ResponseEntity.ok(response);
     }
-}
 
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest changePasswordRequest) {
+        User user = userService.findUserFromAuthentication();
+        userService.changePassword(
+                user,
+                changePasswordRequest.getCurrentPassword(),
+                changePasswordRequest.getNewPassword()
+        );
+        logger.info("Password updated for user: {}", user.getUsername());
+        return ResponseEntity.ok("Password updated successfully.");
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest forgotPasswordRequest) {
+        passwordResetService.requestPasswordReset(forgotPasswordRequest.getEmail());
+        return ResponseEntity.ok("If the email exists, a password reset link has been sent.");
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest resetPasswordRequest) {
+        passwordResetService.resetPassword(
+                resetPasswordRequest.getToken(),
+                resetPasswordRequest.getNewPassword()
+        );
+        return ResponseEntity.ok("Password reset successfully.");
+    }
+}
