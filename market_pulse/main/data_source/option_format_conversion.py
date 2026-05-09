@@ -97,6 +97,38 @@ def _convert_option_folder(
     return 1
 
 
+def _convert_option_folders_with_executor(
+    symbol: str,
+    option_folders: list[Path],
+    target_symbol_path: Path,
+    stock_history_df: pd.DataFrame,
+    risk_free_df: pd.DataFrame,
+    dividend_yield: float,
+    executor: ProcessPoolExecutor,
+) -> int:
+    converted_count = 0
+    futures = {
+        executor.submit(
+            _convert_option_folder,
+            symbol,
+            option_folder,
+            target_symbol_path,
+            stock_history_df,
+            risk_free_df,
+            dividend_yield,
+        ): option_folder
+        for option_folder in option_folders
+    }
+    for future in as_completed(futures):
+        option_folder = futures[future]
+        try:
+            converted_count += future.result()
+        except Exception:
+            logger.exception("Failed converting %s/%s", symbol, option_folder.name)
+            raise
+    return converted_count
+
+
 def convert_csv_symbol_to_parquet(
     symbol: str,
     source_root: Path | str = DEFAULT_SOURCE_ROOT,
@@ -104,6 +136,7 @@ def convert_csv_symbol_to_parquet(
     clean_target: bool = True,
     risk_free_df: pd.DataFrame | None = None,
     workers: int = DEFAULT_WORKERS,
+    executor: ProcessPoolExecutor | None = None,
 ) -> int:
     source_root = Path(source_root)
     target_root = Path(target_root)
@@ -142,27 +175,27 @@ def convert_csv_symbol_to_parquet(
     else:
         max_workers = min(workers, len(option_folders))
         logger.info("Converting symbol %s with %d worker(s)", symbol, max_workers)
-        converted_count = 0
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(
-                    _convert_option_folder,
+        if executor is None:
+            with ProcessPoolExecutor(max_workers=max_workers) as symbol_executor:
+                converted_count = _convert_option_folders_with_executor(
                     symbol,
-                    option_folder,
+                    option_folders,
                     target_symbol_path,
                     stock_history_df,
                     risk_free_df,
                     dividend_yield,
-                ): option_folder
-                for option_folder in option_folders
-            }
-            for future in as_completed(futures):
-                option_folder = futures[future]
-                try:
-                    converted_count += future.result()
-                except Exception:
-                    logger.exception("Failed converting %s/%s", symbol, option_folder.name)
-                    raise
+                    symbol_executor,
+                )
+        else:
+            converted_count = _convert_option_folders_with_executor(
+                symbol,
+                option_folders,
+                target_symbol_path,
+                stock_history_df,
+                risk_free_df,
+                dividend_yield,
+                executor,
+            )
 
     logger.info("Finished symbol %s: converted %d option folder(s)", symbol, converted_count)
     return converted_count
@@ -184,16 +217,32 @@ def convert_all_csv_symbols_to_parquet(
     if clean_target and target_root.exists():
         shutil.rmtree(target_root)
 
+    symbol_paths = sorted(path for path in source_root.iterdir() if path.is_dir())
     total_converted = 0
-    for symbol_path in sorted(path for path in source_root.iterdir() if path.is_dir()):
-        total_converted += convert_csv_symbol_to_parquet(
-            symbol=symbol_path.name,
-            source_root=source_root,
-            target_root=target_root,
-            clean_target=False,
-            risk_free_df=risk_free_df,
-            workers=workers,
-        )
+    if workers <= 1:
+        for symbol_path in symbol_paths:
+            total_converted += convert_csv_symbol_to_parquet(
+                symbol=symbol_path.name,
+                source_root=source_root,
+                target_root=target_root,
+                clean_target=False,
+                risk_free_df=risk_free_df,
+                workers=workers,
+            )
+    else:
+        max_workers = max(1, workers)
+        logger.info("Converting all symbols with one shared pool of %d worker(s)", max_workers)
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            for symbol_path in symbol_paths:
+                total_converted += convert_csv_symbol_to_parquet(
+                    symbol=symbol_path.name,
+                    source_root=source_root,
+                    target_root=target_root,
+                    clean_target=False,
+                    risk_free_df=risk_free_df,
+                    workers=workers,
+                    executor=executor,
+                )
 
     logger.info("Finished all symbols: converted %d option folder(s)", total_converted)
     return total_converted
@@ -316,12 +365,25 @@ def combine_expired_parquet_files(
         return 0
 
     combined_count = 0
+    failed_symbols: list[tuple[str, str]] = []
     for symbol_path in sorted(path for path in parquet_root.iterdir() if path.is_dir()):
         if not symbol_path.name.startswith("symbol="):
             continue
         symbol = _strip_partition_prefix(symbol_path.name, "symbol=")
-        combined_count += combine_expired_parquet_files_for_symbol(symbol, parquet_root, today)
+        try:
+            combined_count += combine_expired_parquet_files_for_symbol(symbol, parquet_root, today)
+        except Exception as exc:
+            logger.exception("Failed parquet combine for symbol %s", symbol)
+            failed_symbols.append((symbol, str(exc)))
+
     logger.info("Finished parquet combine: compacted %d expiry/type folder(s)", combined_count)
+    if failed_symbols:
+        failed_summary = "; ".join(f"{symbol}: {error}" for symbol, error in failed_symbols)
+        raise RuntimeError(
+            "Failed combining expired option parquet files for "
+            f"{len(failed_symbols)} symbol(s): {failed_summary}. "
+            f"Successfully compacted {combined_count} expiry/type folder(s)."
+        )
     return combined_count
 
 

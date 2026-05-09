@@ -89,7 +89,16 @@ public class CronService {
 
     @Scheduled(cron = "0 30 21 * * FRI")
     public void runCombineExpiredOptionParquetFiles2130Friday() {
-        combineExpiredOptionParquetFilesJob("Friday 21:30");
+        try {
+            combineExpiredOptionParquetFilesJob("Friday 21:30");
+        } catch (Exception e) {
+            logger.error("Failed to combine expired option parquet files for Friday 21:30", e);
+            sendTaskEmail(
+                    "FAILED: Combine expired option parquet files Friday 21:30",
+                    "Failed to combine expired option parquet files.\n\nError: " + e.getMessage()
+            );
+            throw e;
+        }
     }
 
     public void updateStockDailyHistory(String timeName) {

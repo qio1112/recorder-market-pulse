@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from main.data_source.option_format_conversion import (
     DEFAULT_WORKERS,
+    REPO_ROOT,
     combine_expired_parquet_files,
     convert_csv_to_parquet,
 )
@@ -17,6 +18,21 @@ from main.utils.logger_utils import setup_logging
 router = APIRouter(prefix="/options", tags=["options"])
 logger = setup_logging("option_api")
 option_reader = OptionParquetReader()
+
+OPTION_CSV_TO_PARQUET_ROOTS = {
+    "": (
+        REPO_ROOT / "resources" / "option_data",
+        REPO_ROOT / "resources" / "option_data_parquet",
+    ),
+    "noon": (
+        REPO_ROOT / "resources" / "option_data_noon",
+        REPO_ROOT / "resources" / "option_data_noon_parquet",
+    ),
+    "open": (
+        REPO_ROOT / "resources" / "option_data_open",
+        REPO_ROOT / "resources" / "option_data_open_parquet",
+    ),
+}
 
 
 class EmptyRequest(BaseModel):
@@ -85,16 +101,36 @@ def get_option_history(payload: OptionHistoryRequest):
 
 
 @router.get("/convert-csv-to-parquet")
-def convert_all_option_csv_to_parquet():
+def convert_all_option_csv_to_parquet(source_data_folder_name: str = ""):
+    roots = OPTION_CSV_TO_PARQUET_ROOTS.get(source_data_folder_name)
+    if roots is None:
+        raise HTTPException(
+            status_code=400,
+            detail="source_data_folder_name must be empty, noon, or open",
+        )
+    source_root, target_root = roots
+
     try:
-        converted_count = convert_csv_to_parquet(clean_target=False, workers=DEFAULT_WORKERS)
+        converted_count = convert_csv_to_parquet(
+            source_root=source_root,
+            target_root=target_root,
+            clean_target=False,
+            workers=DEFAULT_WORKERS,
+        )
     except Exception as exc:  # pragma: no cover - surface runtime errors to clients
         logger.exception("converting option CSV files to parquet failed")
         raise HTTPException(
             status_code=500, detail=f"converting option CSV files to parquet failed: {exc}"
         ) from exc
 
-    return {"converted_count": converted_count, "clean_target": False, "workers": DEFAULT_WORKERS}
+    return {
+        "converted_count": converted_count,
+        "clean_target": False,
+        "workers": DEFAULT_WORKERS,
+        "source_data_folder_name": source_data_folder_name,
+        "source_root": str(source_root),
+        "target_root": str(target_root),
+    }
 
 
 @router.get("/combine-expired-parquet")
