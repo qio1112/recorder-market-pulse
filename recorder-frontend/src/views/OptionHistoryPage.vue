@@ -62,6 +62,10 @@
           <option-history-line-chart :option="midPriceChartOption" height="300px" />
         </dashboard-item>
 
+        <dashboard-item title="Implied Volatility History">
+          <option-history-line-chart :option="impliedVolatilityChartOption" height="280px" />
+        </dashboard-item>
+
         <section class="section-toolbar">
           <h2>Greeks</h2>
           <button type="button" class="secondary" @click="showGreekCharts = !showGreekCharts">
@@ -152,6 +156,9 @@ export default defineComponent({
     },
     midPriceChartOption() {
       return this.buildMetricChartOption('mid', 'Mid Price');
+    },
+    impliedVolatilityChartOption() {
+      return this.buildMetricChartOption('impliedVolatility', 'IV');
     }
   },
   watch: {
@@ -360,6 +367,7 @@ export default defineComponent({
       return Number.isFinite(number) ? number.toFixed(digits) : value;
     },
     getDigitsForField(field) {
+      if (field === 'impliedVolatility') return 4;
       return this.greekFields.some((greek) => greek.key === field) ? 4 : 3;
     },
     formatStrikeForTitle(value) {

@@ -2,6 +2,14 @@
   <tr class="position-row">
     <td>{{ formatSymbol(item) }}</td>
 
+    <td>
+      <input
+        type="checkbox"
+        :checked="item.show !== false"
+        @change="$emit('toggle-show', item.id)"
+      />
+    </td>
+
     <td v-if="!item.isEditing" class="type-text">{{ item.positionType }}</td>
     <td v-else>
       <select v-model="editable.positionType">
@@ -24,12 +32,12 @@
 
     <td v-if="!item.isEditing">{{ item.shares }}</td>
     <td v-else>
-      <input v-model="editable.shares" type="number" step="1" min="0" />
+      <input v-model="editable.shares" type="number" step="1" />
     </td>
 
-    <td v-if="!item.isEditing">${{ formatPrice(item.price) }}</td>
+    <td v-if="!item.isEditing">{{ formatPrice(item.price) }}</td>
     <td v-else>
-      <input v-model="editable.price" type="number" step="0.01" min="0" />
+      <input v-model="editable.price" type="number" step="0.01" min="0" placeholder="optional" />
     </td>
 
     <td>{{ formatExpiry(item.expiry, item.positionType) }}</td>
@@ -51,7 +59,7 @@
 <script>
 export default {
   name: 'OptionPositionRow',
-  emits: ['edit', 'save', 'cancel', 'remove'],
+  emits: ['edit', 'save', 'cancel', 'remove', 'toggle-show'],
   props: {
     item: {
       type: Object,
@@ -77,16 +85,16 @@ export default {
       const positionType = String(this.editable.positionType || '').trim().toLowerCase()
       const strike = Number.parseFloat(this.editable.strike)
       const shares = Number.parseInt(this.editable.shares, 10)
-      const price = Number.parseFloat(this.editable.price)
+      const priceBlank = this.editable.price === null || this.editable.price === undefined || String(this.editable.price).trim() === ''
+      const price = priceBlank ? null : Number.parseFloat(this.editable.price)
 
       if (
         !['call', 'put', 'stock'].includes(positionType) ||
         (positionType !== 'stock' && (!Number.isFinite(strike) || strike < 0)) ||
         !Number.isInteger(shares) ||
-        !Number.isFinite(price) ||
-        price < 0
+        (!priceBlank && (!Number.isFinite(price) || price < 0))
       ) {
-        this.errorMessage = 'Save requires type, integer quantity, and non-negative price. Strike is required for call/put.'
+        this.errorMessage = 'Save requires type and integer shares. Price is optional but must be non-negative. Strike is required for call/put.'
         return
       }
 
@@ -96,7 +104,7 @@ export default {
         positionType,
         strike: positionType === 'stock' ? null : strike,
         shares,
-        price
+        price: priceBlank ? null : price
       })
     },
     formatStrike(value, positionType) {
@@ -123,8 +131,11 @@ export default {
       return `${baseSymbol}${expiryCompact}${optionFlag}${strikeText}`
     },
     formatPrice(value) {
+      if (value === null || value === undefined || String(value).trim() === '') {
+        return '-'
+      }
       const price = Number(value)
-      return Number.isFinite(price) ? price.toFixed(2) : value
+      return Number.isFinite(price) ? `$${price.toFixed(2)}` : value
     },
     formatExpiry(value, positionType) {
       return positionType === 'stock' ? '-' : value
@@ -174,6 +185,12 @@ select {
   border: 1px solid #cfd7e2;
   font-size: 0.78rem;
   background: #ffffff;
+}
+
+input[type="checkbox"] {
+  width: auto;
+  min-width: 0;
+  accent-color: #0f4c81;
 }
 
 input:focus,

@@ -11,14 +11,24 @@
     <div class="shared-inputs">
       <label class="field">
         <span>Symbol</span>
-        <input v-model.trim="sharedFields.symbol" type="text" placeholder="e.g. AAPL" />
+        <select v-model="sharedFields.symbol" @focus="loadSymbols" @change="onSymbolChanged(sharedFields.symbol)">
+          <option value="" disabled>Select symbol</option>
+          <option v-for="symbol in symbols" :key="symbol" :value="symbol">{{ symbol }}</option>
+        </select>
       </label>
 
       <label class="field">
         <span>Expiry</span>
-        <input v-model="sharedFields.expiry" type="date" />
+        <select v-model="sharedFields.expiry" :disabled="!sharedFields.symbol" @change="loadOptionHistory">
+          <option value="" disabled>Select expiry</option>
+          <option v-for="expiry in expiries" :key="expiry.expiry" :value="expiry.expiry">
+            {{ expiry.expiry }}{{ expiry.expired ? '' : ' (Unexpired)' }}
+          </option>
+        </select>
       </label>
     </div>
+    <p v-if="loadingExpiries" class="muted small">Loading expiries...</p>
+    <p v-if="loadingHistory" class="muted small">Loading option history...</p>
 
     <form class="composer" @submit.prevent="addPosition">
       <div class="row-grid">
@@ -33,24 +43,22 @@
 
         <label class="field">
           <span>Strike</span>
-          <input
-            v-model="draft.strike"
-            type="number"
-            step="0.1"
-            min="0"
-            placeholder="e.g. 150.0"
-            :disabled="draft.positionType === 'stock'"
-          />
+          <select v-model="draft.strike" :disabled="draft.positionType === 'stock' || !currentHistory">
+            <option value="" disabled>Select strike</option>
+            <option v-for="strike in availableStrikes" :key="strike" :value="String(strike)">
+              {{ formatStrike(strike) }}
+            </option>
+          </select>
         </label>
 
         <label class="field">
-          <span>Quantity</span>
+          <span>Shares</span>
           <input v-model="draft.shares" type="number" step="1" placeholder="e.g. 1 or -1 for short" />
         </label>
 
         <label class="field">
           <span>Price</span>
-          <input v-model="draft.price" type="number" step="0.01" min="0" placeholder="e.g. 2.35" />
+          <input v-model="draft.price" type="number" step="0.01" min="0" placeholder="optional" />
         </label>
       </div>
 
@@ -71,9 +79,10 @@
         <thead>
           <tr>
             <th>Symbol</th>
+            <th>Show</th>
             <th>Type</th>
             <th>Strike</th>
-            <th>Quantity</th>
+            <th>Shares</th>
             <th>Price</th>
             <th>Expiry</th>
             <th class="actions-col">Actions</th>
@@ -88,6 +97,7 @@
             @save="savePosition"
             @cancel="cancelEditing"
             @remove="removePosition"
+            @toggle-show="togglePositionShow"
           />
         </tbody>
       </table>
@@ -97,13 +107,14 @@
       No positions added yet. Use the shared inputs and add row above to create the first one.
     </div>
 
-    <option-return-chart :positions="positions" />
+    <option-return-chart :positions="positions" :strategy-history="strategyHistory" />
   </section>
 </template>
 
 <script>
 import OptionPositionRow from './OptionPositionRow.vue'
 import OptionReturnChart from './OptionReturnChart.vue'
+import { getOptionExpiries, getOptionSymbols } from '../../api/OptionHistoryService.js'
 
 const OPTION_RETURN_STORAGE_KEY = 'recorder.optionReturn.positions'
 
@@ -119,6 +130,11 @@ export default {
         symbol: '',
         expiry: ''
       },
+      symbols: [],
+      expiries: [],
+      symbolsLoaded: false,
+      loadingExpiries: false,
+      loadingHistory: false,
       draft: {
         positionType: 'stock',
         strike: '',
@@ -127,11 +143,36 @@ export default {
       },
       formError: '',
       nextId: 1,
-      positions: []
+      positions: [],
+      stockHistoryBySymbol: {}
+    }
+  },
+  computed: {
+    cacheKey() {
+      if (!this.sharedFields.symbol || !this.sharedFields.expiry || !this.draft.positionType || this.draft.positionType === 'stock') {
+        return ''
+      }
+      return this.buildCacheKey(this.sharedFields.symbol, this.sharedFields.expiry, this.draft.positionType)
+    },
+    currentHistory() {
+      return this.cacheKey
+        ? this.$store.getters['optionHistory/getOptionHistoryByKey'](this.cacheKey)
+        : null
+    },
+    availableStrikes() {
+      return (this.currentHistory?.strikes || []).map((item) => item.strike)
+    },
+    strategyHistory() {
+      return this.buildStrategyHistory()
     }
   },
   mounted() {
     this.loadPersistedState()
+    if (this.sharedFields.symbol) {
+      this.loadStockHistory(this.sharedFields.symbol)
+      this.onSymbolChanged(this.sharedFields.symbol, false)
+      this.loadPersistedPositionHistory()
+    }
   },
   methods: {
     loadPersistedState() {
@@ -157,6 +198,9 @@ export default {
           symbol: String(parsed.sharedFields?.symbol || '').trim().toUpperCase(),
           expiry: String(parsed.sharedFields?.expiry || '').trim()
         }
+        if (this.sharedFields.symbol) {
+          this.symbols = [this.sharedFields.symbol]
+        }
         this.draft = {
           positionType: ['call', 'put', 'stock'].includes(parsed.draft?.positionType)
             ? parsed.draft.positionType
@@ -175,14 +219,15 @@ export default {
       const payload = {
         sharedFields: this.sharedFields,
         draft: this.draft,
-        positions: this.positions.map((position) => ({
+          positions: this.positions.map((position) => ({
           id: position.id,
           symbol: position.symbol,
           positionType: position.positionType,
           strike: position.strike,
           shares: position.shares,
           price: position.price,
-          expiry: position.expiry
+          expiry: position.expiry,
+          show: position.show
         }))
       }
 
@@ -201,17 +246,19 @@ export default {
       const positionType = String(rawPosition.positionType || '').trim().toLowerCase()
       const strike = Number.parseFloat(rawPosition.strike)
       const shares = Number.parseInt(rawPosition.shares, 10)
-      const price = Number.parseFloat(rawPosition.price)
+      const rawPrice = rawPosition.price
+      const priceBlank = rawPrice === null || rawPrice === undefined || String(rawPrice).trim() === ''
+      const price = priceBlank ? null : Number.parseFloat(rawPrice)
       const expiry = String(rawPosition.expiry || '').trim()
+      const show = rawPosition.show !== false
 
       if (
         !symbol ||
         !['call', 'put', 'stock'].includes(positionType) ||
         (positionType !== 'stock' && (!Number.isFinite(strike) || strike < 0)) ||
         !Number.isInteger(shares) ||
-        !Number.isFinite(price) ||
-        price < 0 ||
-        !expiry
+        (!priceBlank && (!Number.isFinite(price) || price < 0)) ||
+        (positionType !== 'stock' && !expiry)
       ) {
         return null
       }
@@ -221,8 +268,9 @@ export default {
         positionType,
         strike: positionType === 'stock' ? null : Number(strike.toFixed(1)),
         shares,
-        price: Number(price.toFixed(2)),
-        expiry
+        price: priceBlank ? null : Number(price.toFixed(2)),
+        expiry: positionType === 'stock' ? '' : expiry,
+        show
       }
     },
     addPosition() {
@@ -233,15 +281,21 @@ export default {
       })
 
       if (!normalized) {
-        this.formError = 'Enter shared symbol, shared expiry, integer quantity, and non-negative price. Strike is required for call/put.'
+        this.formError = 'Enter shared symbol and integer shares. Expiry and strike are required for call/put. Price is optional but must be non-negative.'
+        return
+      }
+      if (!this.canAddToCurrentStrategy(normalized)) {
+        this.formError = 'Use one symbol and one option expiry for a strategy.'
         return
       }
 
-      this.positions.unshift({
+      const newPosition = {
         id: this.nextId++,
         ...normalized,
         isEditing: false
-      })
+      }
+      this.positions.unshift(newPosition)
+      this.loadHistoryForPosition(newPosition).catch(() => null)
       this.formError = ''
       this.draft = this.getEmptyDraft()
     },
@@ -283,6 +337,24 @@ export default {
     removePosition(id) {
       this.positions = this.positions.filter((position) => position.id !== id)
     },
+    togglePositionShow(id) {
+      this.positions = this.positions.map((position) => (
+        position.id === id ? { ...position, show: !position.show } : position
+      ))
+    },
+    canAddToCurrentStrategy(position) {
+      const existingSymbols = new Set(this.positions.map((item) => item.symbol).filter(Boolean))
+      if (existingSymbols.size && !existingSymbols.has(position.symbol)) return false
+      if (position.positionType === 'stock') return true
+
+      const existingExpiries = new Set(
+        this.positions
+          .filter((item) => item.positionType !== 'stock')
+          .map((item) => item.expiry)
+          .filter(Boolean)
+      )
+      return !existingExpiries.size || existingExpiries.has(position.expiry)
+    },
     resetAll() {
       this.sharedFields = {
         symbol: '',
@@ -298,11 +370,208 @@ export default {
       if (this.draft.positionType === 'stock') {
         this.draft.strike = ''
       }
+    },
+    async loadSymbols() {
+      if (this.symbolsLoaded) return
+      try {
+        this.symbols = await getOptionSymbols()
+        this.symbolsLoaded = true
+      } catch {
+        this.formError = 'Failed to load option symbols.'
+      }
+    },
+    async onSymbolChanged(symbol, resetExpiry = true) {
+      this.expiries = []
+      if (resetExpiry) {
+        this.sharedFields.expiry = ''
+      }
+      this.draft.strike = ''
+      if (!symbol) return
+      await this.loadStockHistory(symbol)
+      this.loadingExpiries = true
+      try {
+        const expiries = await getOptionExpiries(symbol)
+        this.expiries = [...expiries].sort((a, b) => String(b.expiry).localeCompare(String(a.expiry)))
+      } catch {
+        this.formError = `Failed to load expiries for ${symbol}.`
+      } finally {
+        this.loadingExpiries = false
+      }
+    },
+    buildCacheKey(symbol, expiry, optionType) {
+      return `${symbol}|${expiry}|${optionType}`
+    },
+    async loadOptionHistory() {
+      this.draft.strike = ''
+      if (!this.sharedFields.symbol || !this.sharedFields.expiry || this.draft.positionType === 'stock') return
+      const key = this.cacheKey
+      if (this.$store.getters['optionHistory/getOptionHistoryByKey'](key)) return
+      this.loadingHistory = true
+      try {
+        await this.$store.dispatch('optionHistory/loadOptionHistory', {
+          symbol: this.sharedFields.symbol,
+          expiry: this.sharedFields.expiry,
+          optionType: this.draft.positionType
+        })
+      } catch {
+        this.formError = `Failed to load ${this.sharedFields.symbol} ${this.sharedFields.expiry} ${this.draft.positionType} history.`
+      } finally {
+        this.loadingHistory = false
+      }
+    },
+    async loadHistoryForPosition(position) {
+      if (position.positionType === 'stock') {
+        await this.loadStockHistory(position.symbol)
+        return
+      }
+      const key = this.buildCacheKey(position.symbol, position.expiry, position.positionType)
+      if (this.$store.getters['optionHistory/getOptionHistoryByKey'](key)) return
+      await this.$store.dispatch('optionHistory/loadOptionHistory', {
+        symbol: position.symbol,
+        expiry: position.expiry,
+        optionType: position.positionType
+      })
+    },
+    async loadPersistedPositionHistory() {
+      const uniquePositions = Array.from(
+        new Map(this.positions.map((position) => [
+          `${position.symbol}|${position.expiry}|${position.positionType}`,
+          position
+        ])).values()
+      )
+      await Promise.all(uniquePositions.map((position) => this.loadHistoryForPosition(position).catch(() => null)))
+    },
+    async loadStockHistory(symbol) {
+      if (!symbol || this.stockHistoryBySymbol[symbol]) return
+      let stockData = this.$store.getters['portfolio/getStockDailyHistoryData'] || {}
+      if (!stockData[symbol]) {
+        await this.$store.dispatch('portfolio/updateStockHistoryData', [symbol])
+        stockData = this.$store.getters['portfolio/getStockDailyHistoryData'] || {}
+      }
+      if (stockData[symbol]) {
+        this.stockHistoryBySymbol = { ...this.stockHistoryBySymbol, [symbol]: stockData[symbol] }
+      }
+    },
+    formatStrike(value) {
+      const number = Number(value)
+      if (!Number.isFinite(number)) return value
+      return Number.isInteger(number) ? String(number) : number.toFixed(1)
+    },
+    getOptionStrikeData(position) {
+      const key = this.buildCacheKey(position.symbol, position.expiry, position.positionType)
+      const history = this.$store.getters['optionHistory/getOptionHistoryByKey'](key)
+      return (history?.strikes || []).find((item) => Number(item.strike) === Number(position.strike)) || null
+    },
+    getHistoryArray(history, field) {
+      return Array.isArray(history?.[field]) ? history[field] : []
+    },
+    getOptionMidArray(strikeData) {
+      const history = strikeData?.history || {}
+      const mid = this.getHistoryArray(history, 'mid')
+      if (mid.length) return mid
+      const bid = this.getHistoryArray(history, 'bid')
+      const ask = this.getHistoryArray(history, 'ask')
+      return bid.map((value, index) => {
+        const bidValue = Number(value)
+        const askValue = Number(ask[index])
+        return Number.isFinite(bidValue) && Number.isFinite(askValue) ? (bidValue + askValue) / 2 : null
+      })
+    },
+    getStockDateArray(stockHistory) {
+      return stockHistory?.Datetime || stockHistory?.Date || stockHistory?.date || stockHistory?.dates || []
+    },
+    getStockCloseArray(stockHistory) {
+      return stockHistory?.Close || stockHistory?.close || stockHistory?.closePrice || []
+    },
+    buildStrategyHistory() {
+      const enabledPositions = this.positions.filter((position) => position.show !== false)
+      if (!enabledPositions.length) return null
+      const optionPositions = enabledPositions.filter((position) => position.positionType !== 'stock')
+      if (!optionPositions.length) return null
+
+      const optionHistoryByPosition = optionPositions
+        .map((position) => {
+          const strikeData = this.getOptionStrikeData(position)
+          const history = strikeData?.history || {}
+          const dates = this.getHistoryArray(history, 'date')
+          const mids = this.getOptionMidArray(strikeData)
+          const priceByDate = new Map()
+          dates.forEach((date, index) => {
+            const mid = Number(mids[index])
+            if (date && Number.isFinite(mid)) {
+              priceByDate.set(date, mid)
+            }
+          })
+          return { position, priceByDate }
+        })
+        .filter((item) => item.priceByDate.size)
+      if (optionHistoryByPosition.length !== optionPositions.length) return null
+
+      const validDates = optionHistoryByPosition
+        .slice(1)
+        .reduce((dates, item) => dates.filter((date) => item.priceByDate.has(date)), Array.from(optionHistoryByPosition[0].priceByDate.keys()))
+        .sort((a, b) => String(a).localeCompare(String(b)))
+      if (!validDates.length) return null
+      const validDateSet = new Set(validDates)
+
+      const strategyByDate = new Map()
+      optionHistoryByPosition.forEach(({ position, priceByDate }) => {
+        validDates.forEach((date) => {
+          const mid = priceByDate.get(date)
+          const contribution = Number(position.shares) * 100 * mid
+          this.addStrategyPoint(strategyByDate, date, contribution, {
+            label: this.buildOptionLegLabel(position),
+            price: mid,
+            shares: position.shares
+          })
+        })
+      })
+
+      enabledPositions.filter((position) => position.positionType === 'stock').forEach((position) => {
+        const stockHistory = this.stockHistoryBySymbol[position.symbol]
+        const dates = this.getStockDateArray(stockHistory)
+        const closes = this.getStockCloseArray(stockHistory)
+        dates.forEach((date, index) => {
+          const close = Number(closes[index])
+          if (!date || !validDateSet.has(date) || !Number.isFinite(close)) return
+          const contribution = Number(position.shares) * close
+          this.addStrategyPoint(strategyByDate, date, contribution, {
+            label: `${position.symbol} Stock`,
+            price: close,
+            shares: position.shares
+          })
+        })
+      })
+
+      const expiry = enabledPositions.find((position) => position.positionType !== 'stock')?.expiry || this.sharedFields.expiry || ''
+      const data = validDates
+        .map((date) => [date, strategyByDate.get(date)])
+        .filter(([, item]) => item)
+        .map(([date, item]) => ({
+          value: [date, Number(item.total.toFixed(2))],
+          expiry,
+          legs: item.legs
+        }))
+      return data.length ? data : null
+    },
+    addStrategyPoint(strategyByDate, date, contribution, leg) {
+      const current = strategyByDate.get(date) || { total: 0, legs: [] }
+      current.total += contribution
+      current.legs.push({
+        ...leg,
+        price: Number(leg.price.toFixed(3))
+      })
+      strategyByDate.set(date, current)
+    },
+    buildOptionLegLabel(position) {
+      const type = position.positionType === 'call' ? 'Call' : 'Put'
+      return `${position.symbol} ${type} ${this.formatStrike(position.strike)}`
     }
   },
   watch: {
     'draft.positionType'() {
       this.resetDraftStrikeIfStock()
+      this.loadOptionHistory()
     },
     sharedFields: {
       deep: true,
@@ -353,6 +622,12 @@ export default {
   margin: 0.2rem 0 0;
   color: #52606d;
   font-size: 0.82rem;
+}
+
+.muted.small {
+  margin: -0.35rem 0 0.55rem;
+  color: #52606d;
+  font-size: 0.76rem;
 }
 
 .count-badge {
@@ -483,7 +758,7 @@ input:disabled {
 
 .positions-table {
   width: 100%;
-  min-width: 940px;
+  min-width: 980px;
   border-collapse: collapse;
 }
 

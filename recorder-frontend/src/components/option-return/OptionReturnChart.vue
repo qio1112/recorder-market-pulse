@@ -1,9 +1,28 @@
 <template>
   <section class="chart-stack">
+    <section class="chart-card chart-card-wide">
+      <div class="chart-head">
+        <div>
+          <h3>Strategy History</h3>
+          <p>Historical value or return of the checked legs. Option prices are contract-adjusted by 100.</p>
+        </div>
+      </div>
+
+      <v-chart
+        v-if="strategyHistoryChartOption"
+        :option="strategyHistoryChartOption"
+        autoresize
+        class="chart"
+      />
+      <div v-else class="empty-chart">
+        Add checked legs with available history to render the strategy history line.
+      </div>
+    </section>
+
     <section class="chart-card">
       <div class="chart-head">
         <div>
-          <h3>Overall Return</h3>
+          <h3>At Expiry Overall Return</h3>
           <p>The combined expiry return of all added positions.</p>
         </div>
       </div>
@@ -15,14 +34,14 @@
         class="chart"
       />
       <div v-else class="empty-chart">
-        Add positions above to render the overall return line.
+        Add checked positions with entry prices to render the overall at-expiry return line.
       </div>
     </section>
 
     <section class="chart-card">
       <div class="chart-head">
         <div>
-          <h3>Position Return Chart</h3>
+          <h3>At Expiry Position Return Chart</h3>
           <p>Each line shows one position's return at expiry against stock price.</p>
         </div>
       </div>
@@ -34,7 +53,7 @@
         class="chart"
       />
       <div v-else class="empty-chart">
-        Add positions above to render expiry return lines.
+        Add checked positions with entry prices to render at-expiry return lines.
       </div>
     </section>
   </section>
@@ -73,11 +92,24 @@ export default defineComponent({
     positions: {
       type: Array,
       default: () => []
+    },
+    strategyHistory: {
+      type: Array,
+      default: null
     }
   },
   computed: {
+    activePositions() {
+      return this.positions.filter((position) => position.show !== false)
+    },
+    pricedPositions() {
+      return this.activePositions.filter((position) => this.hasEntryPrice(position))
+    },
+    hasUnpricedActiveLeg() {
+      return this.activePositions.some((position) => !this.hasEntryPrice(position))
+    },
     xValues() {
-      return this.positions.length ? this.buildStockPriceRange() : []
+      return this.pricedPositions.length ? this.buildStockPriceRange() : []
     },
     xAxisBounds() {
       if (!this.xValues.length) return null
@@ -86,11 +118,60 @@ export default defineComponent({
         max: this.xValues[this.xValues.length - 1]
       }
     },
+    strategyHistoryChartOption() {
+      if (!this.strategyHistory?.length) return null
+      return {
+        tooltip: {
+          trigger: 'axis',
+          formatter: (params) => {
+            if (!params || !params.length) return ''
+            const date = params[0].axisValueLabel || params[0].name || ''
+            const point = params[0].data || {}
+            const value = this.getPointValue(point)
+            const daysToExpiry = this.daysBetween(date, point.expiry)
+            const dateLabel = daysToExpiry === null ? date : `${date} (${daysToExpiry} days to expiry)`
+            const legLines = Array.isArray(point.legs)
+              ? point.legs.map((leg) => {
+                const price = Number(leg.price)
+                const shares = Number(leg.shares)
+                const shareText = Number.isFinite(shares) ? `, shares ${shares}` : ''
+                return `${leg.label}: ${Number.isFinite(price) ? price.toFixed(3) : leg.price}${shareText}`
+              })
+              : []
+            return `${dateLabel}<br/>Strategy: ${Number.isFinite(value) ? value.toFixed(2) : value}${legLines.length ? `<br/>${legLines.join('<br/>')}` : ''}`
+          }
+        },
+        grid: {
+          left: '7%',
+          right: '4%',
+          top: '10%',
+          bottom: '11%'
+        },
+        xAxis: {
+          type: 'category',
+          data: this.strategyHistory.map((point) => this.getPointDate(point))
+        },
+        yAxis: {
+          type: 'value',
+          name: 'Strategy'
+        },
+        series: [
+          {
+            name: 'Strategy',
+            type: 'line',
+            smooth: true,
+            symbol: 'none',
+            lineStyle: { width: 3 },
+            data: this.strategyHistory
+          }
+        ]
+      }
+    },
     overallChartOption() {
-      if (!this.positions.length || !this.xValues.length) return null
+      if (this.hasUnpricedActiveLeg || !this.pricedPositions.length || !this.xValues.length) return null
 
       const overallData = this.xValues.map((stockPrice) => {
-        const total = this.positions.reduce(
+        const total = this.pricedPositions.reduce(
           (sum, position) => sum + this.calculateReturn(position, stockPrice),
           0
         )
@@ -140,9 +221,9 @@ export default defineComponent({
       }
     },
     positionChartOption() {
-      if (!this.positions.length || !this.xValues.length) return null
+      if (this.hasUnpricedActiveLeg || !this.pricedPositions.length || !this.xValues.length) return null
 
-      const series = this.positions.map((position, index) => ({
+      const series = this.pricedPositions.map((position, index) => ({
         name: this.buildSeriesName(position, index),
         type: 'line',
         symbol: 'none',
@@ -195,7 +276,7 @@ export default defineComponent({
   },
   methods: {
     buildStockPriceRange() {
-      const refs = this.positions.flatMap((position) => {
+      const refs = this.pricedPositions.flatMap((position) => {
         const values = []
         const strike = Number(position.strike)
         const breakEven = this.getBreakEven(position)
@@ -241,6 +322,31 @@ export default defineComponent({
         return quantity * optionContractSize * (Math.max(stockPrice - strike, 0) - price)
       }
       return quantity * optionContractSize * (Math.max(strike - stockPrice, 0) - price)
+    },
+    hasEntryPrice(position) {
+      if (position.price === null || position.price === undefined || String(position.price).trim() === '') {
+        return false
+      }
+      const price = Number(position.price)
+      return Number.isFinite(price) && price >= 0
+    },
+    getPointDate(point) {
+      if (Array.isArray(point)) return point[0]
+      if (Array.isArray(point?.value)) return point.value[0]
+      return ''
+    },
+    getPointValue(point) {
+      if (Array.isArray(point)) return Number(point[1])
+      if (Array.isArray(point?.value)) return Number(point.value[1])
+      return Number(point)
+    },
+    daysBetween(date, expiry) {
+      if (!date || !expiry) return null
+      const start = new Date(`${date}T00:00:00`)
+      const end = new Date(`${expiry}T00:00:00`)
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null
+      const oneDayMs = 24 * 60 * 60 * 1000
+      return Math.max(0, Math.round((end.getTime() - start.getTime()) / oneDayMs))
     },
     buildSeriesName(position, index) {
       const direction = Number(position.shares) >= 0 ? 'Long' : 'Short'
