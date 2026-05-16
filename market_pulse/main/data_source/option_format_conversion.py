@@ -386,36 +386,3 @@ def combine_expired_parquet_files(
         )
     return combined_count
 
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Convert option CSV history files to parquet.")
-    parser.add_argument("--symbol", help="Convert only one symbol. Converts all symbols when omitted.")
-    parser.add_argument("--source-root", type=Path, default=DEFAULT_SOURCE_ROOT)
-    parser.add_argument("--target-root", type=Path, default=DEFAULT_TARGET_ROOT)
-    parser.add_argument("--no-clean-target", action="store_true", help="Skip symbols that already exist in target.")
-    parser.add_argument("--combine-expired", action="store_true", help="Combine expired daily parquet files.")
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=DEFAULT_WORKERS,
-        help=f"Parallel workers per symbol for expiry-level conversion. Default: {DEFAULT_WORKERS}.",
-    )
-    args = parser.parse_args()
-
-    converted_count = convert_csv_to_parquet(
-        symbol=args.symbol,
-        source_root=args.source_root,
-        target_root=args.target_root,
-        clean_target=not args.no_clean_target,
-        workers=args.workers,
-    )
-    combined_count = combine_expired_parquet_files(args.target_root) if args.combine_expired else 0
-
-    print(
-        f"Converted {converted_count} option CSV folder(s) to parquet. "
-        f"Combined {combined_count} expired expiry/type folder(s)."
-    )
-
-
-if __name__ == "__main__":
-    main()

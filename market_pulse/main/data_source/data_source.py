@@ -312,7 +312,7 @@ class StockOptionData:
                 failed_symbols_itr = executor.map(self.write_option_to_file, remaining_symbols,
                                                   [revised_on_date] * len(remaining_symbols),
                                                   [False] * len(remaining_symbols),
-                                                  [True] * len(remaining_symbols),
+                                                  [False] * len(remaining_symbols),
                                                   [time_label] * len(remaining_symbols),
                                                   [to_parquet_file] * len(remaining_symbols),
                                                   [risk_free_df] * len(remaining_symbols))

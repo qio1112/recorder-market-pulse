@@ -87,7 +87,7 @@ public class CronService {
         serverStatusEmail("23:00");
     }
 
-    @Scheduled(cron = "0 30 21 * * FRI")
+    @Scheduled(cron = "0 30 21 * * SAT")
     public void runCombineExpiredOptionParquetFiles2130Friday() {
         try {
             combineExpiredOptionParquetFilesJob("Friday 21:30");
