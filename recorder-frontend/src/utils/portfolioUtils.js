@@ -45,9 +45,9 @@ export function enrichAccumulativeTradeData(tradesBySymbol, historyData) {
   const enriched = {};
   for (const [symbol, trades] of Object.entries(tradesBySymbol)) {
     const enrichedForSymbol = enrichAccumulativeTradeDataForSymbol(trades, historyData[symbol]);
-    if (enrichedForSymbol.shares.at(-1) !== 0) { // if holding 0 shares now, no need to show it
+    // if (enrichedForSymbol.shares.at(-1) !== 0) { // if holding 0 shares now, no need to show it
       enriched[symbol] = enrichedForSymbol;
-    }
+    // }
   }
   return enriched;
 }
