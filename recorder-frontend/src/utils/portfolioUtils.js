@@ -166,12 +166,11 @@ export function enrichAccumulativeTradeDataForSymbol(trades, historyData) {
       totalShares += tradeSharesSigned;
       cashFlow = -tradeSharesSigned * nextTrade.price;
       cash += cashFlow;
-      totalCost += nextTrade.price * tradeSharesSigned;
       if (nextTrade.action === 'buy') {
-        // totalCost += nextTrade.price * tradeSharesSigned;
+        totalCost += nextTrade.price * tradeSharesSigned;
         averageCostPerShare = totalCost / totalShares;
       } else { // sell, averageCostPerShare remains the same
-        // totalCost += nextTrade.price * tradeSharesSigned;
+        totalCost += averageCostPerShare * tradeSharesSigned;
         realizedPnL -= (nextTrade.price - averageCostPerShare) * tradeSharesSigned;
       }
       tradeIndex += 1;

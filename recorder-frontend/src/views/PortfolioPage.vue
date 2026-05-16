@@ -106,6 +106,13 @@ export default defineComponent({
     },
     hasInvalidSymbols() {
       return this.invalidSymbols && this.invalidSymbols.length > 0;
+    },
+    inactiveSymbols() {
+      return Object.keys(this.enrichedPortfolioTradeData).filter((sym) => {
+        const shares = this.enrichedPortfolioTradeData[sym]?.shares;
+        if (!Array.isArray(shares) || !shares.length) return false;
+        return Number(shares.at(-1)) === 0;
+      });
     }
   },
   mounted() {
@@ -198,7 +205,7 @@ export default defineComponent({
         })
         .filter((series) => series && series.data.length);
     },
-    maybeAddAggregateSeries(metric, series) {
+    maybeAddAggregateSeries(metric, series, symbols) {
       const aggregateKeys = [
         'cashFlow',
         'cash',
@@ -210,7 +217,7 @@ export default defineComponent({
       ];
       if (!aggregateKeys.includes(metric)) return series;
       if (metric === 'totalPortfolio' && !this.showTotalAggregate) return series;
-      const agg = this.aggregateMetric(metric);
+      const agg = this.aggregateMetric(metric, symbols);
       if (!agg.dates.length) return series;
       const aggPoints = this.filterPointsBySelectedDateRange(agg.dates.map((d, idx) => [d, agg.values[idx]]));
       if (!aggPoints.length) return series;
@@ -273,13 +280,17 @@ export default defineComponent({
       const symbols = this.selectedSymbols.length
         ? this.selectedSymbols
         : Object.keys(this.enrichedPortfolioTradeData);
+      const inactiveSymbolSet = new Set(this.inactiveSymbols);
       this.aggregatedMetrics = {};
       const nextOptions = {};
       const baseFormatter = this.baseTooltipFormatter;
       const totalFormatter = this.buildTotalTooltip();
       this.metrics.forEach((metric) => {
-        const baseSeries = this.buildSeriesForMetric(metric, symbols);
-        const series = this.maybeAddAggregateSeries(metric, baseSeries);
+        const metricSymbols = metric === 'realizedPnL'
+          ? symbols
+          : symbols.filter((sym) => !inactiveSymbolSet.has(sym));
+        const baseSeries = this.buildSeriesForMetric(metric, metricSymbols);
+        const series = this.maybeAddAggregateSeries(metric, baseSeries, metricSymbols);
         const option = this.buildOption(
           metric,
           series,
@@ -288,7 +299,7 @@ export default defineComponent({
         if (option) nextOptions[metric] = option;
       });
       this.chartOptions = nextOptions;
-      this.buildDonut(symbols);
+      this.buildDonut(symbols.filter((sym) => !inactiveSymbolSet.has(sym)));
     },
     buildDonut(symbols) {
       const pieData = symbols
@@ -331,10 +342,16 @@ export default defineComponent({
         ]
       };
     },
-    aggregateMetric(metric) {
-      if (this.aggregatedMetrics[metric]) return this.aggregatedMetrics[metric];
-      const result = aggregateMetricAcrossSymbols(this.enrichedPortfolioTradeData, metric);
-      this.aggregatedMetrics[metric] = result;
+    aggregateMetric(metric, symbols) {
+      const cacheKey = `${metric}:${symbols.join('|')}`;
+      if (this.aggregatedMetrics[cacheKey]) return this.aggregatedMetrics[cacheKey];
+      const dataForSymbols = Object.fromEntries(
+        symbols
+          .filter((sym) => this.enrichedPortfolioTradeData[sym])
+          .map((sym) => [sym, this.enrichedPortfolioTradeData[sym]])
+      );
+      const result = aggregateMetricAcrossSymbols(dataForSymbols, metric);
+      this.aggregatedMetrics[cacheKey] = result;
       return result;
     },
     async getSourceData() {
@@ -444,9 +461,19 @@ export default defineComponent({
   gap: 0.8rem;
 }
 
+.chart-grid.multi {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .chart-grid.single {
   grid-template-columns: 1fr;
   margin-bottom: 0.8rem;
+}
+
+@media (max-width: 760px) {
+  .chart-grid.multi {
+    grid-template-columns: 1fr;
+  }
 }
 
 :deep(.dashboard-item) {
