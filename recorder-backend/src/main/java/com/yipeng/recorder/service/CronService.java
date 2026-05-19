@@ -95,7 +95,7 @@ public class CronService {
         );
     }
 
-    @Scheduled(cron = "0 0 21 * * MON-FRI")
+    @Scheduled(cron = "0 30 21 * * MON-FRI")
     public void runMarketNewsSummary2100Weekdays() {
         runCronJob("Market news summary 21:00", () -> createMarketNewsSummaryRecord("21:00"));
     }
