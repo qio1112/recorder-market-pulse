@@ -15,11 +15,23 @@
           @keyup.enter.prevent="addLabel"
         />
         <button type="button" class="add-btn" @click="addLabel">Add</button>
+        <button
+          v-if="showGenerateLabelsButton"
+          type="button"
+          class="add-btn"
+          :disabled="isGeneratingLabels || !labelSourceText"
+          @click="generateLabels"
+        >
+          {{ isGeneratingLabels ? 'Generating...' : 'Generate Labels' }}
+        </button>
         <label class="trade-check">
           <input type="checkbox" v-model="isTrade" />
           is_trade
         </label>
       </div>
+      <p v-if="labelMessage" class="label-message" :class="{ error: labelMessageIsError }">
+        {{ labelMessage }}
+      </p>
       <div class="labels-list" v-if="form.labels.length">
         <span v-for="label in form.labels" :key="label" class="chip">
           {{ label }}
@@ -157,6 +169,12 @@
 
 <script>
 import { getRecFile } from '../../api/RecordService.js'
+import { generateRecordLabels, sendLlmChat } from '../../api/LlmService.js'
+
+const SYSTEM_MESSAGE = {
+  role: 'system',
+  content: 'You are a concise assistant for the Recorder admin user.'
+}
 
 export default {
   name: 'RecordEditForm',
@@ -196,6 +214,11 @@ export default {
         : false,
       imagePreviews: [],
       existingImageFiles: [],
+      isCheckingLlm: true,
+      noLlmConnection: true,
+      isGeneratingLabels: false,
+      labelMessage: '',
+      labelMessageIsError: false,
       metadataRows: this.initialRecord.metadata
         ? Object.entries(this.initialRecord.metadata).map(([key, value]) => ({ key, value }))
         : []
@@ -203,6 +226,7 @@ export default {
   },
   mounted() {
     this.loadExistingImageFiles();
+    this.checkLlmConnection();
   },
   beforeUnmount() {
     this.cleanupImagePreviews();
@@ -214,6 +238,12 @@ export default {
     },
     existingOtherFiles() {
       return this.existingFiles.filter((file) => file.fileType !== 'IMAGE');
+    },
+    showGenerateLabelsButton() {
+      return !this.isCheckingLlm && !this.noLlmConnection;
+    },
+    labelSourceText() {
+      return `${this.form.title || ''}\n${this.form.content || ''}`.trim();
     }
   },
   watch: {
@@ -235,6 +265,42 @@ export default {
     }
   },
   methods: {
+    async checkLlmConnection() {
+      this.isCheckingLlm = true;
+      try {
+        await sendLlmChat([
+          SYSTEM_MESSAGE,
+          { role: 'user', content: 'Reply with OK.' }
+        ]);
+        this.noLlmConnection = false;
+      } catch (error) {
+        this.noLlmConnection = true;
+      } finally {
+        this.isCheckingLlm = false;
+      }
+    },
+    async generateLabels() {
+      if (this.isGeneratingLabels || !this.labelSourceText) return;
+      this.isGeneratingLabels = true;
+      this.labelMessage = '';
+      this.labelMessageIsError = false;
+      try {
+        const response = await generateRecordLabels({
+          title: this.form.title,
+          content: this.form.content,
+          maxLabels: 8
+        });
+        const labels = Array.isArray(response?.labels) ? response.labels : [];
+        const newLabels = labels.filter((label) => label && !this.form.labels.includes(label));
+        this.form.labels.push(...newLabels);
+        this.labelMessage = newLabels.length ? `Added ${newLabels.length} label(s).` : 'No new labels generated.';
+      } catch (error) {
+        this.labelMessage = 'Failed to generate labels.';
+        this.labelMessageIsError = true;
+      } finally {
+        this.isGeneratingLabels = false;
+      }
+    },
     onImagesChange(e) {
       this.form.images = Array.from(e.target.files).filter((file) => file.type.startsWith('image/'));
       e.target.value = '';
@@ -339,12 +405,13 @@ export default {
 .record-edit-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1.15rem;
-  padding: 1.25rem;
-  border: 1px solid #d9e2ec;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid #cfd7e2;
   border-radius: 4px;
   background: #ffffff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 6px 18px rgba(15, 76, 129, 0.05);
+  font-size: 0.84rem;
 }
 
 .field {
@@ -355,14 +422,14 @@ export default {
 
 .field.checkbox,
 .file-removal-field {
-  padding: 0.8rem;
+  padding: 0.75rem;
   border: 1px solid #e5e8ed;
   border-radius: 4px;
   background: #f8fafc;
 }
 
 .alert-field {
-  padding: 0.8rem;
+  padding: 0.75rem;
   border: 1px solid #e5e8ed;
   border-radius: 4px;
   background: #f8fafc;
@@ -479,7 +546,7 @@ export default {
 
 label {
   font-weight: 600;
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   color: #1f2933;
 }
 
@@ -488,19 +555,19 @@ textarea,
 select {
   width: 100%;
   box-sizing: border-box;
-  padding: 0.65rem 0.75rem;
+  padding: 0.5rem 0.6rem;
   border: 1px solid #cbd5e1;
   border-radius: 4px;
   background: #ffffff;
   color: #1f2933;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   line-height: 1.45;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 textarea {
-  min-height: 24rem;
+  min-height: 20rem;
   resize: vertical;
 }
 
@@ -519,7 +586,7 @@ input[type="checkbox"] {
 }
 
 input[type="file"] {
-  padding: 0.6rem;
+  padding: 0.5rem;
   background: #f8fafc;
 }
 
@@ -545,7 +612,7 @@ input[type="file"] {
   align-items: center;
   gap: 0.25rem;
   color: #1f2933;
-  font-size: 0.85rem;
+  font-size: 0.76rem;
 }
 
 .inline-check {
@@ -555,23 +622,34 @@ input[type="file"] {
   margin-top: 0.15rem;
   width: fit-content;
   color: #1f2933;
-  font-size: 0.85rem;
+  font-size: 0.76rem;
 }
 
 .add-btn {
   flex: 0 0 auto;
-  padding: 0.6rem 0.9rem;
+  padding: 0.48rem 0.75rem;
   border-radius: 4px;
   border: 1px solid #b8c4d4;
   background: #f8fafc;
   color: #1f2933;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.76rem;
   font-weight: 600;
 }
 
 .add-btn:hover {
   background: #eef4fb;
+}
+
+.add-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.label-message {
+  margin: 0;
+  color: #52606d;
+  font-size: 0.76rem;
 }
 
 .labels-list {
@@ -584,12 +662,12 @@ input[type="file"] {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.3rem 0.55rem;
+  padding: 0.25rem 0.5rem;
   border-radius: 4px;
   background: #eef6ff;
   color: #0f4c81;
   border: 1px solid #cfe7ff;
-  font-size: 0.8rem;
+  font-size: 0.74rem;
 }
 
 .chip-remove {
@@ -614,7 +692,7 @@ input[type="file"] {
 }
 
 .meta-input {
-  padding: 0.45rem 0.6rem;
+  padding: 0.45rem 0.55rem;
 }
 
 .meta-remove {
@@ -639,11 +717,11 @@ input[type="file"] {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.65rem 0.75rem;
+  padding: 0.55rem 0.65rem;
   border: 1px solid #e5e8ed;
   border-radius: 4px;
   background: #f8fafc;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
 }
 
 .file-row-main {
@@ -694,11 +772,11 @@ input[type="file"] {
 
 .form-actions :deep(.primary) {
   min-width: 10rem;
-  padding: 0.65rem 1rem;
+  padding: 0.55rem 0.9rem;
   border-radius: 4px;
   border-color: #0f6abf;
   background: #0f6abf;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 700;
   line-height: 1.2;
   text-align: center;

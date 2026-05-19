@@ -41,6 +41,18 @@
               <span class="tool-description">Prices, Greeks, and stock context</span>
             </router-link>
           </li>
+          <li v-if="isAdmin">
+            <router-link to="/tools/llm-chat">
+              <span class="tool-title">LLM Chat</span>
+              <span class="tool-description">Admin conversation console</span>
+            </router-link>
+          </li>
+          <li v-if="isAdmin">
+            <router-link to="/tools/admin">
+              <span class="tool-title">Admin Tools</span>
+              <span class="tool-description">Manual backend jobs</span>
+            </router-link>
+          </li>
         </ul>
       </li>
       <li><router-link to="/account">Account</router-link></li>
@@ -63,6 +75,14 @@ export default {
     },
     isToolsActive() {
       return this.$route.path.startsWith('/tools/');
+    },
+    isAdmin() {
+      return this.$store.getters['user/isAdmin'];
+    }
+  },
+  mounted() {
+    if (this.isUserAuthenticated && !this.$store.getters['user/isUserInfoLoaded']) {
+      this.$store.dispatch('user/loadUserInfo');
     }
   },
   methods: {

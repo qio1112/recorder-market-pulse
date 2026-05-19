@@ -1,7 +1,7 @@
 <template>
-  <section class="edit-record">
-    <header class="record-editor-header">
-      <p class="eyebrow">Records</p>
+  <section class="edit-record workspace-page">
+    <header class="record-editor-header workspace-header">
+      <p class="workspace-eyebrow">Records</p>
       <h1>Edit Record</h1>
     </header>
     <record-edit-form
@@ -11,8 +11,8 @@
       :error-message="errorMessage"
       @submit="handleSubmit"
     />
-    <p v-else class="muted">Loading…</p>
-    <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+    <p v-else class="muted workspace-panel workspace-muted">Loading...</p>
+    <p v-if="errorMessage" class="error workspace-error">{{ errorMessage }}</p>
   </section>
 </template>
 
@@ -58,37 +58,15 @@ export default {
 
 <style scoped>
 .edit-record {
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 1.75rem 1rem 2.5rem;
+  max-width: 1080px;
 }
 
 .record-editor-header {
-  margin-bottom: 1rem;
-}
-
-.eyebrow {
-  margin: 0 0 0.25rem;
-  color: #52606d;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-h1 {
-  margin: 0;
-  color: #172033;
-  font-size: 1.75rem;
-  line-height: 1.2;
+  display: block;
 }
 
 .muted {
-  padding: 1rem;
-  border: 1px solid #d9e2ec;
-  border-radius: 4px;
-  background: #ffffff;
-  color: #52606d;
+  margin: 0;
 }
 
 .error {

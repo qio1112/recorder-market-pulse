@@ -1,11 +1,11 @@
 <template>
-  <section class="add-record">
-    <header class="record-editor-header">
-      <p class="eyebrow">Records</p>
+  <section class="add-record workspace-page">
+    <header class="record-editor-header workspace-header">
+      <p class="workspace-eyebrow">Records</p>
       <h1>Create New Record</h1>
     </header>
     <record-edit-form mode="create" :error-message="errorMessage" @submit="handleSubmit" />
-    <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+    <p v-if="errorMessage" class="error workspace-error">{{ errorMessage }}</p>
   </section>
 </template>
 
@@ -37,32 +37,14 @@ export default {
 
 <style scoped>
 .add-record {
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 1.75rem 1rem 2.5rem;
+  max-width: 1080px;
 }
 
 .record-editor-header {
-  margin-bottom: 1rem;
-}
-
-.eyebrow {
-  margin: 0 0 0.25rem;
-  color: #52606d;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-h1 {
-  margin: 0;
-  color: #172033;
-  font-size: 1.75rem;
-  line-height: 1.2;
+  display: block;
 }
 
 .error {
-  color: #d64045;
+  margin-top: 0.75rem;
 }
 </style>

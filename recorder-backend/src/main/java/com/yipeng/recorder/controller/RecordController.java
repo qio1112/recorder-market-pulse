@@ -13,6 +13,7 @@ import com.yipeng.recorder.request.NewRecordRequest;
 import com.yipeng.recorder.request.QdrantQueryRequest;
 import com.yipeng.recorder.request.UpdateRecordRequest;
 import com.yipeng.recorder.response.RecordDailyCountDto;
+import com.yipeng.recorder.response.RelatedRecordResponse;
 import com.yipeng.recorder.service.LabelService;
 import com.yipeng.recorder.service.RecFileService;
 import com.yipeng.recorder.service.RecordService;
@@ -223,6 +224,51 @@ public class RecordController {
             throw new ForbiddenException();
         }
         return ResponseEntity.ok().body(record);
+    }
+
+    @GetMapping(value="/record/{id}/related")
+    public ResponseEntity<List<RelatedRecordResponse>> getRelatedRecords(@PathVariable("id") Long id) {
+        User user = userService.findUserFromAuthentication();
+        Record sourceRecord = recordService.getRecordById(id);
+        if (sourceRecord == null) {
+            throw new ResourceNotFoundException("Record not found");
+        }
+        if (!userService.userCanSeeRecord(user, sourceRecord)) {
+            throw new ForbiddenException();
+        }
+
+        double threshold = 0.45d;
+        int limit = 5;
+        var results = qdrantEmbeddingService.querySimilarRecords(
+                sourceRecord.getEmbeddingString(),
+                user,
+                threshold,
+                limit + 1
+        );
+
+        List<RelatedRecordResponse> relatedRecords = results.stream()
+                .filter(r -> r.getRecordId() != null && !r.getRecordId().equals(sourceRecord.getId().toString()))
+                .filter(r -> r.getBestScore() != null && r.getBestScore() >= threshold)
+                .sorted((a, b) -> Double.compare(
+                        b.getBestScore() != null ? b.getBestScore() : 0.0,
+                        a.getBestScore() != null ? a.getBestScore() : 0.0))
+                .map(r -> {
+                    try {
+                        Long relatedId = Long.parseLong(r.getRecordId());
+                        Record related = recordService.getRecordById(relatedId);
+                        if (related != null && userService.userCanSeeRecord(user, related)) {
+                            return new RelatedRecordResponse(related, r.getBestScore(), r.getChunks());
+                        }
+                    } catch (NumberFormatException ignored) {
+                        // skip invalid vector payload record ids
+                    }
+                    return null;
+                })
+                .filter(r -> r != null)
+                .limit(limit)
+                .toList();
+
+        return ResponseEntity.ok(relatedRecords);
     }
 
     @GetMapping(value="/delete-record/{id}")

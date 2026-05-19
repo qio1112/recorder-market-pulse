@@ -22,6 +22,16 @@ export async function getRecordDetail(recordID) {
   }
 }
 
+export async function getRelatedRecords(recordID) {
+  try {
+    const response = await http.get(`/records/record/${recordID}/related`);
+    return response.data;
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+}
+
 export async function getRecFile(fileID) {
   try {
     const response = await http.get(`/recfile/${fileID}`, { responseType: 'blob' });

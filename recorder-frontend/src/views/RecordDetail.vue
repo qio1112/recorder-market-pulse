@@ -1,107 +1,125 @@
 <template>
-  <section class="record-detail" v-if="!isLoading && record">
-    <header class="header">
-      <h1>{{ record.title }}</h1>
-      <div class="labels" v-if="record.labels && record.labels.length">
-        <span
-          v-for="label in record.labels"
-          :key="label.labelName"
-          class="chip"
-        >
-          {{ label.labelName }}
-        </span>
-      </div>
-    </header>
-
-    <article class="content">
-      <h2>Content</h2>
-      <p v-if="record.content">{{ record.content }}</p>
-      <p v-else class="muted">No content</p>
-    </article>
-
-    <section class="meta-grid">
-      <div>
-        <h2>Created</h2>
-        <p class="muted">{{ formatDateTime(record.creationTime) }}</p>
-      </div>
-      <div>
-        <h2>Last modified</h2>
-        <p class="muted">{{ formatDateTime(record.lastModifiedTime) }}</p>
-      </div>
-      <div>
-        <h2>Author</h2>
-        <p class="muted">{{ record.createdBy }}</p>
-      </div>
-      <div>
-        <h2>Public</h2>
-        <p class="muted">{{ record.public }}</p>
-      </div>
-    </section>
-
-    <section class="alert" v-if="alertInfo">
-      <h2>Alert</h2>
-      <p>{{ alertInfo }}</p>
-    </section>
-
-    <section class="files" v-if="record.recFiles && record.recFiles.length">
-      <h2>Files</h2>
-      <div v-if="imageFiles.length" class="image-list">
-        <button
-          v-for="file in imageFiles"
-          :key="`img-${file.fileID}`"
-          type="button"
-          class="file-card image-card"
-          :aria-label="`Preview image ${cleanFileName(file.filename)}`"
-          @click="openImagePreview(file)"
-        >
-          <img :src="file.url" :alt="file.filename" />
-          <p class="file-name">{{ cleanFileName(file.filename) }}</p>
-        </button>
-      </div>
-      <div v-if="otherFiles.length" class="file-list">
-        <div
-          v-for="file in otherFiles"
-          :key="`file-${file.fileID}`"
-          class="file-card file-download"
-        >
-          <p class="file-name">{{ cleanFileName(file.filename) }}</p>
-          <button type="button" @click="downloadFile(file)">Download</button>
+  <div class="record-detail-page workspace-page" v-if="!isLoading && record">
+    <section class="record-detail workspace-panel">
+      <header class="header workspace-header">
+        <h1>{{ record.title }}</h1>
+        <div class="labels" v-if="record.labels && record.labels.length">
+          <span
+            v-for="label in record.labels"
+            :key="label.labelName"
+            class="chip workspace-chip"
+          >
+            {{ label.labelName }}
+          </span>
         </div>
-      </div>
-    </section>
-    <section class="metadata" v-if="metadataEntries.length">
-      <h2>Metadata</h2>
-      <div class="metadata-table">
-        <div class="metadata-row" v-for="item in metadataEntries" :key="item.key">
-          <span class="meta-key">{{ item.key }}</span>
-          <span class="meta-value">{{ item.value }}</span>
+      </header>
+
+      <article class="content">
+        <h2>Content</h2>
+        <div v-if="record.content" class="content-body">
+          <p>{{ record.content }}</p>
         </div>
+        <p v-else class="muted">No content</p>
+      </article>
+
+      <section class="meta-grid">
+        <div>
+          <h2>Created</h2>
+          <p class="muted">{{ formatDateTime(record.creationTime) }}</p>
+        </div>
+        <div>
+          <h2>Last modified</h2>
+          <p class="muted">{{ formatDateTime(record.lastModifiedTime) }}</p>
+        </div>
+        <div>
+          <h2>Author</h2>
+          <p class="muted">{{ record.createdBy }}</p>
+        </div>
+        <div>
+          <h2>Public</h2>
+          <p class="muted">{{ record.public }}</p>
+        </div>
+      </section>
+
+      <section class="alert" v-if="alertInfo">
+        <h2>Alert</h2>
+        <p>{{ alertInfo }}</p>
+      </section>
+
+      <section class="files" v-if="record.recFiles && record.recFiles.length">
+        <h2>Files</h2>
+        <div v-if="imageFiles.length" class="image-list">
+          <button
+            v-for="file in imageFiles"
+            :key="`img-${file.fileID}`"
+            type="button"
+            class="file-card image-card"
+            :aria-label="`Preview image ${cleanFileName(file.filename)}`"
+            @click="openImagePreview(file)"
+          >
+            <img :src="file.url" :alt="file.filename" />
+            <p class="file-name">{{ cleanFileName(file.filename) }}</p>
+          </button>
+        </div>
+        <div v-if="otherFiles.length" class="file-list">
+          <div
+            v-for="file in otherFiles"
+            :key="`file-${file.fileID}`"
+            class="file-card file-download"
+          >
+            <p class="file-name">{{ cleanFileName(file.filename) }}</p>
+            <button type="button" @click="downloadFile(file)">Download</button>
+          </div>
+        </div>
+      </section>
+      <section class="metadata" v-if="metadataEntries.length">
+        <h2>Metadata</h2>
+        <div class="metadata-table">
+          <div class="metadata-row" v-for="item in metadataEntries" :key="item.key">
+            <span class="meta-key">{{ item.key }}</span>
+            <span class="meta-value">{{ item.value }}</span>
+          </div>
+        </div>
+      </section>
+      <div class="actions">
+        <base-button mode="primary" @click="editRecord">Edit Record</base-button>
+        <base-button class="danger" mode="outline" @click="handleDeleteClick">
+          {{ confirmDelete ? 'Click again to confirm delete' : 'Delete Record' }}
+        </base-button>
+      </div>
+      <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+      <image-preview
+        v-if="selectedImage"
+        :image="selectedImage"
+        @close="selectedImage = null"
+      />
+    </section>
+
+    <section class="related-records workspace-panel" v-if="isRelatedLoading || relatedRecords.length || relatedRecordsError">
+      <h2>Related Records</h2>
+      <p v-if="isRelatedLoading" class="muted">Loading related records...</p>
+      <p v-else-if="relatedRecordsError" class="error">{{ relatedRecordsError }}</p>
+      <div v-else-if="relatedRecords.length" class="related-list">
+        <record-preview
+          v-for="item in relatedRecords"
+          :key="item.record.id"
+          :record="item.record"
+        />
       </div>
     </section>
-    <div class="actions">
-      <base-button mode="primary" @click="editRecord">Edit Record</base-button>
-      <base-button class="danger" mode="outline" @click="handleDeleteClick">
-        {{ confirmDelete ? 'Click again to confirm delete' : 'Delete Record' }}
-      </base-button>
-    </div>
-    <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
-    <image-preview
-      v-if="selectedImage"
-      :image="selectedImage"
-      @close="selectedImage = null"
-    />
-  </section>
-  <p v-else-if="isLoading" class="muted">Loading record…</p>
-  <p v-else class="muted">Record not found.</p>
+  </div>
+  <p v-else-if="isLoading" class="workspace-page workspace-panel workspace-muted">Loading record...</p>
+  <p v-else class="workspace-page workspace-panel workspace-muted">Record not found.</p>
 </template>
 
 <script>
-import { getRecordDetail, getRecFile, deleteRecord } from '../api/RecordService.js'
+import { getRecordDetail, getRelatedRecords, getRecFile, deleteRecord } from '../api/RecordService.js'
 import ImagePreview from '../components/records/ImagePreview.vue'
+import RecordPreview from '../components/records/RecordPreview.vue'
 
 export default {
   name: 'RecordDetailView',
-  components: { ImagePreview },
+  components: { ImagePreview, RecordPreview },
   props: {
     recordID: {
       type: String,
@@ -114,6 +132,9 @@ export default {
       isLoading: false,
       imageFiles: [],
       otherFiles: [],
+      relatedRecords: [],
+      isRelatedLoading: false,
+      relatedRecordsError: '',
       selectedImage: null,
       errorMessage: '',
       confirmDelete: false
@@ -154,9 +175,36 @@ export default {
   methods: {
     async fetchRecord() {
       this.isLoading = true;
+      this.isRelatedLoading = false;
+      this.relatedRecords = [];
+      this.relatedRecordsError = '';
       this.record = await getRecordDetail(this.recordID);
       await this.loadFiles();
       this.isLoading = false;
+      this.loadRelatedRecords();
+    },
+    async loadRelatedRecords() {
+      const recordId = this.record?.id;
+      if (!recordId) {
+        this.relatedRecords = [];
+        this.isRelatedLoading = false;
+        return;
+      }
+      this.isRelatedLoading = true;
+      this.relatedRecordsError = '';
+      try {
+        const related = await getRelatedRecords(recordId);
+        if (this.record?.id !== recordId) return;
+        this.relatedRecords = related;
+      } catch (e) {
+        if (this.record?.id !== recordId) return;
+        this.relatedRecords = [];
+        this.relatedRecordsError = 'Failed to load related records.';
+      } finally {
+        if (this.record?.id === recordId) {
+          this.isRelatedLoading = false;
+        }
+      }
     },
     editRecord() {
       if (this.record?.id) {
@@ -247,21 +295,27 @@ export default {
 </script>
 
 <style scoped>
+.record-detail-page {
+  max-width: 1080px;
+}
+
 .record-detail {
-  max-width: 960px;
-  margin: 1.5rem auto;
-  padding: 1rem 1.25rem;
-  border: 1px solid #e5e8ed;
-  border-radius: 4px;
-  background: #fff;
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
+.related-records {
+  margin-top: 0.8rem;
+}
+
 .header h1 {
-  margin: 0 0 0.5rem 0;
-  color: #102a43;
+  margin: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: #0f4c81;
+  font-size: 1.4rem;
 }
 
 .labels {
@@ -271,11 +325,8 @@ export default {
 }
 
 .chip {
-  background: #e5f3ff;
-  color: #0f4c81;
-  padding: 0.25rem 0.6rem;
-  border-radius: 4px;
-  font-size: 0.9rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .content,
@@ -288,26 +339,39 @@ export default {
 
 h2 {
   margin: 0 0 0.35rem 0;
-  font-size: 1.05rem;
-  color: #102a43;
+  font-size: 0.95rem;
+  color: #243b53;
 }
 
 p {
   margin: 0;
   color: #243b53;
   line-height: 1.5;
+  font-size: 0.84rem;
 }
 
-.content p {
+.content-body {
+  max-height: min(52vh, 34rem);
+  overflow: auto;
+  padding: 0.7rem;
+  border: 1px solid #d9e2ec;
+  border-radius: 4px;
+  background: #f7fafc;
+}
+
+.content-body p {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .muted {
   color: #52606d;
+  font-size: 0.8rem;
 }
 
 .error {
   color: #d64045;
+  font-size: 0.8rem;
 }
 
 .metadata-table {
@@ -321,8 +385,9 @@ p {
   display: grid;
   grid-template-columns: 1fr 2fr;
   gap: 0.5rem;
-  padding: 0.5rem 0.65rem;
+  padding: 0.45rem 0.6rem;
   border-bottom: 1px solid #e5e8ed;
+  font-size: 0.8rem;
 }
 
 .metadata-row:last-child {
@@ -375,7 +440,7 @@ p {
 .file-card {
   border: 1px solid #e5e8ed;
   border-radius: 4px;
-  padding: 0.65rem;
+  padding: 0.6rem;
   background: #f7fafc;
   display: flex;
   flex-direction: column;
@@ -411,15 +476,23 @@ p {
 .file-name {
   word-break: break-word;
   text-align: center;
+  font-size: 0.78rem;
 }
 
 .file-download button {
-  padding: 0.5rem 0.9rem;
+  padding: 0.45rem 0.75rem;
   border-radius: 4px;
   border: 1px solid #cfd7e2;
   background: #0f4c81;
   color: #fff;
   cursor: pointer;
+  font-size: 0.76rem;
+}
+
+.related-list {
+  border: 1px solid #e5e8ed;
+  border-radius: 4px;
+  overflow: hidden;
 }
 
 .meta-grid {

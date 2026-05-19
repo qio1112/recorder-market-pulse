@@ -5,11 +5,14 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yipeng.recorder.model.StockDailyHistory;
+import com.yipeng.recorder.request.LlmChatRequest;
 import com.yipeng.recorder.response.OptionExpiryDatesResponse;
 import com.yipeng.recorder.response.OptionHistoryResponse;
 import com.yipeng.recorder.response.OptionParquetCombineResponse;
 import com.yipeng.recorder.response.OptionSymbolsResponse;
+import com.yipeng.recorder.response.LlmChatResponse;
 import com.yipeng.recorder.response.StockDailyHistoryForSymbolResponse;
+import com.yipeng.recorder.response.StockNewsSummaryResponse;
 import jakarta.mail.MessagingException;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -216,6 +219,32 @@ public class MarketPulseApiService {
     public ResponseEntity<String> getFearGreedIndex() {
         String url = marketPulseBaseUrl + "/fear-greed-index";
         return restTemplate.getForEntity(url, String.class);
+    }
+
+    public StockNewsSummaryResponse getTrackedStockNewsSummary() {
+        String url = marketPulseBaseUrl + "/news/stock-summary";
+        logger.info("Calling Market Pulse stock news summary API: {}", url);
+        RestTemplate longTimeoutRestTemplate = buildRestTemplateWithTimeouts(Duration.ofSeconds(10), Duration.ofMinutes(10));
+        ResponseEntity<StockNewsSummaryResponse> response = longTimeoutRestTemplate.postForEntity(
+                url,
+                buildJsonRequest(Collections.emptyMap()),
+                StockNewsSummaryResponse.class
+        );
+        StockNewsSummaryResponse body = response.getBody() == null ? new StockNewsSummaryResponse() : response.getBody();
+        logger.info("Market Pulse stock news summary API returned {} symbol summary item(s)", body.getSummaries().size());
+        return body;
+    }
+
+    public LlmChatResponse chatWithLlm(LlmChatRequest request) {
+        String url = marketPulseBaseUrl + "/llm/chat";
+        logger.info("Calling Market Pulse LLM chat API: {}", url);
+        RestTemplate llmTimeoutRestTemplate = buildRestTemplateWithTimeouts(Duration.ofSeconds(10), Duration.ofSeconds(30));
+        ResponseEntity<LlmChatResponse> response = llmTimeoutRestTemplate.postForEntity(
+                url,
+                buildJsonRequest(request),
+                LlmChatResponse.class
+        );
+        return response.getBody() == null ? new LlmChatResponse("") : response.getBody();
     }
 
     private HttpEntity<Map<String, List<String>>> buildSymbolsRequest(List<String> symbols) {

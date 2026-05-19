@@ -6,6 +6,7 @@ import com.yipeng.recorder.model.User;
 import com.yipeng.recorder.request.StockHistoryRequest;
 import com.yipeng.recorder.response.StockDailyHistoryForSymbolResponse;
 import com.yipeng.recorder.response.StockDailyHistoryFullResponse;
+import com.yipeng.recorder.response.StockNewsSummaryResponse;
 import com.yipeng.recorder.service.MarketPulseApiService;
 import com.yipeng.recorder.service.StockDailyHistoryService;
 import com.yipeng.recorder.service.UserService;
@@ -88,6 +89,16 @@ public class StockDataController {
         String output = marketPulseApiService.runUpdateStockOptionDataApi(null);
         logger.info("Update stock option completed successfully. Output: " + output);
         return ResponseEntity.ok().body(output);
+    }
+
+    @GetMapping(value="/stock-data/news-summary")
+    public ResponseEntity<StockNewsSummaryResponse> getStockNewsSummary() {
+        User user = userService.findUserFromAuthentication();
+        if (user == null || !user.isAdmin()) {
+            throw new ForbiddenException();
+        }
+        StockNewsSummaryResponse response = marketPulseApiService.getTrackedStockNewsSummary();
+        return ResponseEntity.ok().body(response);
     }
 
     @GetMapping(value="/stock-data/update_stock_data/help")
@@ -179,4 +190,3 @@ public class StockDataController {
         return ResponseEntity.ok(help);
     }
 }
-
