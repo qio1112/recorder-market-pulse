@@ -100,7 +100,8 @@ public class MarketPulseApiService {
         List<String> symbols = this.formatSymbolList(symbolsList);
         logger.info("Starting job to update stock daily history data in database.");
 
-        ResponseEntity<String> apiResponseEntity = restTemplate.postForEntity(url, buildSymbolsRequest(symbols), String.class);
+        RestTemplate longTimeoutRestTemplate = buildRestTemplateWithTimeouts(Duration.ofSeconds(10), Duration.ofMinutes(5));
+        ResponseEntity<String> apiResponseEntity = longTimeoutRestTemplate.postForEntity(url, buildSymbolsRequest(symbols), String.class);
         if (apiResponseEntity.getStatusCode().isError()) {
             throw new RuntimeException("Failed getting stock daily history data from script.");
         }

@@ -63,72 +63,102 @@ public class CronService {
 
     @Scheduled(cron = "0 5 10 * * MON-FRI")
     public void runUpdateStockTask1005() {
-        sendStockJobEmail("10:05", List.of(updateStockOptionDataJob("10:05")));
+        runCronJob("Update stock option data 10:05", () ->
+                sendStockJobEmail("10:05", List.of(updateStockOptionDataJob("10:05")))
+        );
     }
 
     @Scheduled(cron = "0 30 13 * * MON-FRI")
     public void runUpdateStockTask1330() {
-        sendStockJobEmail("13:30", List.of(updateStockOptionDataJob("13:30")));
+        runCronJob("Update stock option data 13:30", () ->
+                sendStockJobEmail("13:30", List.of(updateStockOptionDataJob("13:30")))
+        );
     }
 
     @Scheduled(cron = "0 30 16 * * MON-FRI")
     public void runUpdateStockTask1630() {
-        sendStockJobEmail("16:30", List.of(
-                updateStockOptionDataJob("16:30"),
-                updateStockDailyHistory("16:30")
-        ));
+        runCronJob("Stock data jobs 16:30", () ->
+                sendStockJobEmail("16:30", List.of(
+                        updateStockOptionDataJob("16:30"),
+                        updateStockDailyHistory("16:30")
+                ))
+        );
     }
 
     @Scheduled(cron = "0 0 21 * * MON-FRI")
     public void runUpdateStockTask2100() {
-        sendStockJobEmail("21:00", List.of(
-                updateStockOptionDataJob("21:00"),
-                updateStockDailyHistory("21:00")
-        ));
+        runCronJob("Stock data jobs 21:00", () ->
+                sendStockJobEmail("21:00", List.of(
+                        updateStockOptionDataJob("21:00"),
+                        updateStockDailyHistory("21:00")
+                ))
+        );
     }
 
     @Scheduled(cron = "0 0 21 * * MON-FRI")
     public void runMarketNewsSummary2100Weekdays() {
-        createMarketNewsSummaryRecord("21:00");
+        runCronJob("Market news summary 21:00", () -> createMarketNewsSummaryRecord("21:00"));
     }
 
     @Scheduled(cron = "0 0 8 * * *")
     public void runStatusUpdate0800() {
-        serverStatusEmail("08:00");
+        runCronJob("Status update 08:00", () -> serverStatusEmail("08:00"));
     }
 
     @Scheduled(cron = "0 0 12 * * *")
     public void runStatusUpdate1200() {
-        serverStatusEmail("12:00");
+        runCronJob("Status update 12:00", () -> serverStatusEmail("12:00"));
     }
 
     @Scheduled(cron = "0 0 16 * * *")
     public void runStatusUpdate1600() {
-        serverStatusEmail("16:00");
+        runCronJob("Status update 16:00", () -> serverStatusEmail("16:00"));
     }
 
     @Scheduled(cron = "0 0 20 * * *")
     public void runStatusUpdate2000() {
-        serverStatusEmail("20:00");
+        runCronJob("Status update 20:00", () -> serverStatusEmail("20:00"));
     }
 
     @Scheduled(cron = "0 0 23 * * *")
     public void runStatusUpdate2300() {
-        serverStatusEmail("23:00");
+        runCronJob("Status update 23:00", () -> serverStatusEmail("23:00"));
     }
 
     @Scheduled(cron = "0 30 21 * * SAT")
     public void runCombineExpiredOptionParquetFiles2130Friday() {
+        runCronJob("Combine expired option parquet files Friday 21:30", () ->
+                combineExpiredOptionParquetFilesJob("Friday 21:30")
+        );
+    }
+
+    private void runCronJob(String jobName, Runnable job) {
         try {
-            combineExpiredOptionParquetFilesJob("Friday 21:30");
+            job.run();
         } catch (Exception e) {
-            logger.error("Failed to combine expired option parquet files for Friday 21:30", e);
-            sendTaskEmail(
-                    "FAILED: Combine expired option parquet files Friday 21:30",
-                    "Failed to combine expired option parquet files.\n\nError: " + e.getMessage()
-            );
+            logger.error("Cron job failed: {}", jobName, e);
+            sendCronFailureEmail(jobName, e);
             throw e;
         }
+    }
+
+    private void sendCronFailureEmail(String jobName, Exception e) {
+        String today = dateTimeUtils.getCurrentDateString();
+        String message = e.getMessage();
+        String content = """
+                Cron job failed.
+
+                Job: %s
+                Date: %s
+                Error type: %s
+                Error: %s
+                """.formatted(
+                jobName,
+                today,
+                e.getClass().getName(),
+                StringUtils.isBlank(message) ? "(no error message)" : message
+        );
+        sendTaskEmail("FAILED: " + jobName + " " + today, content);
     }
 
     public StockJobResult updateStockDailyHistory(String timeName) {
