@@ -59,6 +59,7 @@ venv/
 .env/
 ENV/
 *.ipydb
+/.pytest_cache
 
 ### JAR files ###
 *.jar

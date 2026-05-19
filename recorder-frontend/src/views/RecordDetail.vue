@@ -17,7 +17,7 @@
       <article class="content">
         <h2>Content</h2>
         <div v-if="record.content" class="content-body">
-          <p>{{ record.content }}</p>
+          <formatted-text :text="record.content" />
         </div>
         <p v-else class="muted">No content</p>
       </article>
@@ -116,10 +116,11 @@
 import { getRecordDetail, getRelatedRecords, getRecFile, deleteRecord } from '../api/RecordService.js'
 import ImagePreview from '../components/records/ImagePreview.vue'
 import RecordPreview from '../components/records/RecordPreview.vue'
+import FormattedText from '../components/ui/FormattedText.vue'
 
 export default {
   name: 'RecordDetailView',
-  components: { ImagePreview, RecordPreview },
+  components: { FormattedText, ImagePreview, RecordPreview },
   props: {
     recordID: {
       type: String,
@@ -357,11 +358,6 @@ p {
   border: 1px solid #d9e2ec;
   border-radius: 4px;
   background: #f7fafc;
-}
-
-.content-body p {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 .muted {

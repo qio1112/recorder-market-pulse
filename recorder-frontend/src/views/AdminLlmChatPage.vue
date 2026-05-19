@@ -61,7 +61,7 @@
               {{ formatMessageTime(message.createdAt) }}
             </time>
           </div>
-          <p class="content">{{ message.content }}</p>
+          <formatted-text class="content" :text="message.content" />
         </div>
       </div>
 
@@ -84,6 +84,7 @@
 <script>
 import { saveLlmChatAsRecord, sendLlmChat } from '../api/LlmService.js'
 import { parseJwtInfo } from '../api/UserService.js'
+import FormattedText from '../components/ui/FormattedText.vue'
 
 const SYSTEM_MESSAGE = {
   role: 'system',
@@ -93,6 +94,7 @@ const CHAT_HISTORY_STORAGE_KEY = 'recorder.llmChat.messages'
 
 export default {
   name: 'AdminLlmChatPage',
+  components: { FormattedText },
   data() {
     return {
       messages: [SYSTEM_MESSAGE],
@@ -451,13 +453,9 @@ export default {
 }
 
 .content {
-  margin: 0;
-  color: #243b53;
-  line-height: 1.38;
-  white-space: pre-wrap;
   font-size: 0.84rem;
   overflow: visible;
-  overflow-wrap: anywhere;
+  line-height: 1.38;
 }
 
 .composer {
