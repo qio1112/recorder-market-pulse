@@ -9,6 +9,8 @@ This directory documents the project at module and file/class level so future wo
 - [Recorder Frontend](./recorder-frontend.md): Vue application structure, routes, stores, API clients, record workflows, LLM chat/admin tools, portfolio charts, calendar, and option tools.
 - [Market Pulse](./market-pulse.md): FastAPI service, stock/option data collection, parquet readers/converters, configurable LLM client, yfinance news summaries, Qdrant vector search, and task entry points.
 - [Data Flows](./data-flows.md): end-to-end flows for login, record CRUD, file upload/download, semantic search, related records, LLM labels/chat records, market-news records, portfolio charting, option history, and stock history refresh.
+- [Job System/Admin Dashboard Plan](./plan/job-system-and-admin-dashboard.md): implemented foundation for the database-backed job system, built-in cron seeding, admin job APIs, retries, and dashboard direction.
+- [Job System Follow-Up Tasks](./plan/job-system-follow-up-tasks.md): remaining delayed retry, idempotency, manual reindex, execution filter, and hardening tasks.
 
 ## Runtime Modules
 

@@ -136,6 +136,16 @@ public class QdrantEmbeddingService {
         return exists instanceof Boolean && (Boolean) exists;
     }
 
+    public boolean deleteRecordIfExistsSync(String recordId) {
+        boolean exists = recordExists(recordId);
+        if (exists) {
+            QdrantDeleteRequest body = new QdrantDeleteRequest(recordId, qdrantCollection);
+            post("/delete", body, Void.class);
+        }
+        logger.info("Deleted record with id {} from qdrant if it existed.", recordId);
+        return exists;
+    }
+
     private List<String> extractLabelNames(Record record) {
         if (record.getLabels() == null) {
             return List.of();

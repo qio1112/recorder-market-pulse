@@ -5,7 +5,9 @@ from main.api.qdrant_api import router as qdrant_router
 from main.api.option_api import router as option_router
 from main.api.news_api import router as news_router
 from main.api.llm_api import router as llm_router
+from main.api.logging_config import configure_uvicorn_logging
 
+configure_uvicorn_logging()
 app = FastAPI(title="Market Pulse API", version="1.0.0")
 
 app.include_router(stock_router)

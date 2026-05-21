@@ -57,16 +57,19 @@ public class LlmRecordService {
     private final MarketPulseApiService marketPulseApiService;
     private final RecordService recordService;
     private final QdrantEmbeddingService qdrantEmbeddingService;
+    private final QdrantJobService qdrantJobService;
     private final DateTimeUtils dateTimeUtils;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public LlmRecordService(MarketPulseApiService marketPulseApiService,
                             RecordService recordService,
                             QdrantEmbeddingService qdrantEmbeddingService,
+                            QdrantJobService qdrantJobService,
                             DateTimeUtils dateTimeUtils) {
         this.marketPulseApiService = marketPulseApiService;
         this.recordService = recordService;
         this.qdrantEmbeddingService = qdrantEmbeddingService;
+        this.qdrantJobService = qdrantJobService;
         this.dateTimeUtils = dateTimeUtils;
     }
 
@@ -128,7 +131,7 @@ public class LlmRecordService {
                 isPublic,
                 Map.of("source", "llm_chat")
         );
-        qdrantEmbeddingService.upsertRecordAsync(savedRecord, user);
+        qdrantJobService.queueUpsert(savedRecord);
         return savedRecord;
     }
 

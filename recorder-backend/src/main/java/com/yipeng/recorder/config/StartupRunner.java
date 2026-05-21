@@ -5,6 +5,7 @@ import com.yipeng.recorder.model.Record;
 import com.yipeng.recorder.repository.*;
 import com.yipeng.recorder.service.QdrantEmbeddingService;
 import com.yipeng.recorder.service.ScheduleAlertService;
+import com.yipeng.recorder.service.BuiltInJobSeeder;
 import com.yipeng.recorder.utils.LabelType;
 import com.yipeng.recorder.utils.RoleType;
 import org.slf4j.Logger;
@@ -30,6 +31,7 @@ public class StartupRunner implements CommandLineRunner {
     private final AlertScheduleRepository alertScheduleRepository;
     private final ScheduleAlertService scheduleAlertService;
     private final QdrantEmbeddingService qdrantEmbeddingService;
+    private final BuiltInJobSeeder builtInJobSeeder;
 
     @Value("${admin.username}")
     private String adminUsername;
@@ -45,7 +47,8 @@ public class StartupRunner implements CommandLineRunner {
                          PasswordEncoder passwordEncoder, LabelRepository labelRepository,
                          RecordRepository recordRepository, AlertScheduleRepository alertScheduleRepository,
                          ScheduleAlertService scheduleAlertService,
-                         QdrantEmbeddingService qdrantEmbeddingService) {
+                         QdrantEmbeddingService qdrantEmbeddingService,
+                         BuiltInJobSeeder builtInJobSeeder) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
@@ -54,6 +57,7 @@ public class StartupRunner implements CommandLineRunner {
         this.alertScheduleRepository = alertScheduleRepository;
         this.scheduleAlertService = scheduleAlertService;
         this.qdrantEmbeddingService = qdrantEmbeddingService;
+        this.builtInJobSeeder = builtInJobSeeder;
     }
 
     @Override
@@ -61,6 +65,7 @@ public class StartupRunner implements CommandLineRunner {
         logger.info("Starting application startup runner...");
         createAdminUser();
         createDefaultLabels();
+        builtInJobSeeder.seedBuiltInJobs();
         scheduleExistingAlerts();
         if (runQdrantUpsertOnStartup) {
             upsertExistingRecordsToQdrant();

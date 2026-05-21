@@ -209,10 +209,14 @@ Actions:
   - `Add Chat As Record` sends the current visible chat to `/api/llm/chat-record`; backend accepts the job asynchronously and the page shows that creation started rather than waiting for completion.
 - `views/AdminToolsPage.vue`
   - Admin-only page under Tools.
-  - Contains manual backend functions.
-  - Current function starts the market-news summary job.
-  - Button is disabled while checking LLM, while running, or when LLM is disconnected.
-  - The manual job is fire-and-forget; the page shows whether the job was started, not whether all records finished.
+  - Shows job status panels for Market Pulse, LLM, stock freshness, option freshness, and Qdrant count consistency.
+  - Groups schedules by job type so repeated built-in jobs, such as status email or stock/option updates at multiple times, appear as one job with multiple schedule chips.
+  - Separates status-check jobs from data-update jobs. Data-update jobs include stock/option updates, after-close stock refreshes, market-news record generation, and expired option parquet combines.
+  - Hides internal Qdrant record upsert/delete jobs from the dashboard job tables; only the Qdrant consistency check remains visible.
+  - Each grouped job has one compact manual `Run` action. Triggered jobs show an immediate `STARTING` state with a spinner for at least one second before polling the real execution status.
+  - Each grouped job has its own history dropdown backed by job-type execution history. Long history lists scroll, and selecting an execution shows admin-only details.
+  - Status-check jobs include a `Run All` action that triggers every visible status check without changing data-update jobs.
+  - Individual schedule chips open the schedule editor for that concrete existing `scheduled_job_config` row; the UI does not expose custom schedule creation yet.
 - `components/TheHeader.vue`
   - Tools dropdown includes Portfolio, Option Return, Option History, admin-only LLM Chat, and admin-only Admin Tools.
 

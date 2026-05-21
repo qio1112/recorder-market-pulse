@@ -7,6 +7,7 @@ import com.yipeng.recorder.model.User;
 import com.yipeng.recorder.repository.LabelRepository;
 import com.yipeng.recorder.repository.RecordRepository;
 import com.yipeng.recorder.repository.RoleRepository;
+import com.yipeng.recorder.repository.ScheduledJobConfigRepository;
 import com.yipeng.recorder.repository.UserRepository;
 import com.yipeng.recorder.service.CronService;
 import com.yipeng.recorder.service.SendEmailService;
@@ -26,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -41,13 +43,16 @@ import java.util.stream.Collectors;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.notNullValue;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 class RecorderApplicationTests {
 
     private static final Logger logger = LoggerFactory.getLogger(RecorderApplicationTests.class);
 
-    private final String baseUrl = "http://localhost:8080";
+    @LocalServerPort
+    private int port;
+
+    private String baseUrl;
     private String jwtToken;
     private final String testUsernameAdmin = "test_user_admin";
 
@@ -58,6 +63,7 @@ class RecorderApplicationTests {
     private final PasswordEncoder passwordEncoder;
     private final LabelRepository labelRepository;
     private final RecordRepository recordRepository;
+    private final ScheduledJobConfigRepository scheduledJobConfigRepository;
     private final JwtUtil jwtUtil;
     private final SendEmailService sendEmailService;
     private final DateTimeUtils dateTimeUtils;
@@ -72,17 +78,24 @@ class RecorderApplicationTests {
     @Autowired
     public RecorderApplicationTests(UserRepository userRepository, RoleRepository roleRepository,
                          PasswordEncoder passwordEncoder, LabelRepository labelRepository,
-                         RecordRepository recordRepository, JwtUtil jwtUtil, SendEmailService sendEmailService,
+                         RecordRepository recordRepository, ScheduledJobConfigRepository scheduledJobConfigRepository,
+                         JwtUtil jwtUtil, SendEmailService sendEmailService,
                                     DateTimeUtils dateTimeUtils, CronService cronService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.labelRepository = labelRepository;
         this.recordRepository = recordRepository;
+        this.scheduledJobConfigRepository = scheduledJobConfigRepository;
         this.jwtUtil = jwtUtil;
         this.sendEmailService = sendEmailService;
         this.dateTimeUtils = dateTimeUtils;
         this.cronService = cronService;
+    }
+
+    @BeforeEach
+    void configureBaseUrl() {
+        baseUrl = "http://localhost:" + port;
     }
 
     @Test
@@ -536,6 +549,141 @@ class RecorderApplicationTests {
         logger.info(response2.asString());
     }
 
+    @Test
+    void testAdminJobConfigListRequiresAdmin() {
+        prepareTestData();
+
+        jwtToken = jwtUtil.generateToken("test_user_user1");
+        Response forbiddenResponse = given()
+                .header("Authorization", "Bearer " + jwtToken)
+                .contentType(ContentType.JSON)
+                .get(baseUrl + "/api/admin-tools/jobs/configs");
+        forbiddenResponse.then().statusCode(403);
+
+        getTestJWTToken();
+        Response adminResponse = given()
+                .header("Authorization", "Bearer " + jwtToken)
+                .contentType(ContentType.JSON)
+                .get(baseUrl + "/api/admin-tools/jobs/configs");
+        adminResponse.then()
+                .statusCode(200)
+                .body("size()", org.hamcrest.Matchers.greaterThan(0));
+    }
+
+    @Test
+    void testAdminCanUpdateBuiltInJobConfig() {
+        prepareTestData();
+        getTestJWTToken();
+
+        Long jobId = scheduledJobConfigRepository.findByJobKey("server-status-0800")
+                .orElseThrow()
+                .getId();
+
+        Response response = given()
+                .header("Authorization", "Bearer " + jwtToken)
+                .contentType(ContentType.JSON)
+                .body("""
+                      {
+                        "enabled": false,
+                        "retryCount": 2,
+                        "retryDelaySeconds": 30
+                      }
+                      """)
+                .put(baseUrl + "/api/admin-tools/jobs/configs/" + jobId);
+
+        response.then()
+                .statusCode(200)
+                .body("enabled", org.hamcrest.Matchers.equalTo(false))
+                .body("retryCount", org.hamcrest.Matchers.equalTo(2))
+                .body("retryDelaySeconds", org.hamcrest.Matchers.equalTo(30));
+    }
+
+    @Test
+    void testAdminCanTriggerBuiltInCleanupJob() {
+        prepareTestData();
+        getTestJWTToken();
+
+        Long jobId = scheduledJobConfigRepository.findByJobKey("job-execution-cleanup")
+                .orElseThrow()
+                .getId();
+
+        Response response = given()
+                .header("Authorization", "Bearer " + jwtToken)
+                .contentType(ContentType.JSON)
+                .post(baseUrl + "/api/admin-tools/jobs/configs/" + jobId + "/trigger");
+
+        Long executionId = response.then()
+                .statusCode(202)
+                .body("id", notNullValue())
+                .body("jobKey", org.hamcrest.Matchers.equalTo("job-execution-cleanup"))
+                .extract()
+                .jsonPath()
+                .getLong("id");
+
+        waitForJobExecutionStatus(executionId, "SUCCESS");
+    }
+
+    @Test
+    void testAdminDashboardAndCustomScheduleCrud() {
+        prepareTestData();
+
+        jwtToken = jwtUtil.generateToken("test_user_user1");
+        given()
+                .header("Authorization", "Bearer " + jwtToken)
+                .contentType(ContentType.JSON)
+                .get(baseUrl + "/api/admin-tools/jobs/dashboard")
+                .then()
+                .statusCode(403);
+
+        getTestJWTToken();
+        given()
+                .header("Authorization", "Bearer " + jwtToken)
+                .contentType(ContentType.JSON)
+                .get(baseUrl + "/api/admin-tools/jobs/dashboard")
+                .then()
+                .statusCode(200)
+                .body("configs.size()", org.hamcrest.Matchers.greaterThan(0))
+                .body("latestByJobKey", notNullValue())
+                .body("historyByJobType", notNullValue());
+
+        String jobKey = "custom-health-check-test";
+        Response createResponse = given()
+                .header("Authorization", "Bearer " + jwtToken)
+                .contentType(ContentType.JSON)
+                .body("""
+                      {
+                        "jobKey": "custom-health-check-test",
+                        "displayName": "Custom Health Check Test",
+                        "jobType": "MARKET_PULSE_HEALTH_CHECK",
+                        "enabled": false,
+                        "scheduleType": "MANUAL",
+                        "parametersJson": "{}",
+                        "maxRuntimeSeconds": 60,
+                        "retryCount": 0,
+                        "retryDelaySeconds": 0,
+                        "allowConcurrentRuns": false,
+                        "description": "Test custom schedule"
+                      }
+                      """)
+                .post(baseUrl + "/api/admin-tools/jobs/configs");
+
+        Long id = createResponse.then()
+                .statusCode(200)
+                .body("jobKey", org.hamcrest.Matchers.equalTo(jobKey))
+                .body("builtin", org.hamcrest.Matchers.equalTo(false))
+                .extract()
+                .jsonPath()
+                .getLong("id");
+
+        given()
+                .header("Authorization", "Bearer " + jwtToken)
+                .contentType(ContentType.JSON)
+                .delete(baseUrl + "/api/admin-tools/jobs/configs/" + id)
+                .then()
+                .statusCode(200)
+                .body("status", org.hamcrest.Matchers.equalTo("deleted"));
+    }
+
 
     private void getTestJWTToken() {
         try {
@@ -546,6 +694,29 @@ class RecorderApplicationTests {
             e.printStackTrace();
             throw e;
         }
+    }
+
+    private void waitForJobExecutionStatus(Long executionId, String expectedStatus) {
+        String lastStatus = null;
+        String lastBody = null;
+        for (int i = 0; i < 20; i++) {
+            Response response = given()
+                    .header("Authorization", "Bearer " + jwtToken)
+                    .contentType(ContentType.JSON)
+                    .get(baseUrl + "/api/admin-tools/jobs/executions/" + executionId);
+            lastBody = response.asString();
+            lastStatus = response.jsonPath().getString("status");
+            if (expectedStatus.equals(lastStatus)) {
+                return;
+            }
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        }
+        Assertions.fail("Expected job execution " + executionId + " to reach " + expectedStatus + " but was " + lastStatus + ". Body: " + lastBody);
     }
 
     private void prepareTestData() {
@@ -683,7 +854,7 @@ class RecorderApplicationTests {
                 .post(baseUrl + "/api/run-script/update_stock_data");
 
         response.then()
-                .statusCode(200);
+                .statusCode(404);
     }
 
     @Test
@@ -702,9 +873,7 @@ class RecorderApplicationTests {
                 .post(baseUrl + "/api/run-script/update_stock_data");
 
         response.then()
-                .statusCode(200);
-
-        logger.info("script output: {}", response.body().asString().split("result data:")[1].trim());
+                .statusCode(404);
     }
 
     @Test
@@ -723,9 +892,7 @@ class RecorderApplicationTests {
                 .post(baseUrl + "/api/run-script/update_stock_data");
 
         response.then()
-                .statusCode(200);
-
-        logger.info("script output: {}", response.body().asString().split("result data:")[1].trim());
+                .statusCode(404);
     }
 
     @Test
@@ -739,8 +906,7 @@ class RecorderApplicationTests {
                 .post(baseUrl + "/api/run-script/update_stock_data");
 
         response.then()
-                .statusCode(403);
-        logger.info("script output: {}", response.body().asString().split("result data:")[1].trim());
+                .statusCode(404);
     }
 
 //    @Test

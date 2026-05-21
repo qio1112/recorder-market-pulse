@@ -62,6 +62,19 @@ public class MarketPulseApiService {
         return restTemplate.getForEntity(url, String.class);
     }
 
+    public boolean isTodayTradeDay() {
+        String url = marketPulseBaseUrl + "/today-is-trade-day";
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<Map<String, Object>>() {
+                });
+        Map<String, Object> body = response.getBody();
+        Object value = body == null ? null : body.get("is_trade_day");
+        return value instanceof Boolean && (Boolean) value;
+    }
+
     public String runUpdateStockOptionDataApi(MarketPulseUpdateStockDataRequest request) {
         String url = marketPulseBaseUrl + "/update-stock-data";
         MarketPulseUpdateStockDataRequest payload = request == null

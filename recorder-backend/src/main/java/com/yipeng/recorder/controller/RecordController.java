@@ -18,6 +18,7 @@ import com.yipeng.recorder.service.LabelService;
 import com.yipeng.recorder.service.RecFileService;
 import com.yipeng.recorder.service.RecordService;
 import com.yipeng.recorder.service.QdrantEmbeddingService;
+import com.yipeng.recorder.service.QdrantJobService;
 import com.yipeng.recorder.service.UserService;
 import com.yipeng.recorder.utils.AlertType;
 import com.yipeng.recorder.utils.DateTimeUtils;
@@ -67,6 +68,7 @@ public class RecordController {
     private final DateTimeUtils dateTimeUtils;
 
     private final QdrantEmbeddingService qdrantEmbeddingService;
+    private final QdrantJobService qdrantJobService;
 
     @Autowired
     public RecordController(UserService userService,
@@ -74,13 +76,15 @@ public class RecordController {
                             LabelService labelService,
                             RecFileService recFileService,
                             DateTimeUtils dateTimeUtils,
-                            QdrantEmbeddingService qdrantEmbeddingService) {
+                            QdrantEmbeddingService qdrantEmbeddingService,
+                            QdrantJobService qdrantJobService) {
         this.userService = userService;
         this.recordService = recordService;
         this.labelService = labelService;
         this.recFileService = recFileService;
         this.dateTimeUtils = dateTimeUtils;
         this.qdrantEmbeddingService = qdrantEmbeddingService;
+        this.qdrantJobService = qdrantJobService;
     }
 
     @PostMapping(value = "/create-record", consumes = "multipart/form-data")
@@ -106,7 +110,7 @@ public class RecordController {
                 newRecordRequest.isPublic(), newRecordRequest.getMetadata());
 
         // update qdrant embedding
-        qdrantEmbeddingService.upsertRecordAsync(newRecord, user);
+        qdrantJobService.queueUpsert(newRecord);
         return ResponseEntity.status(HttpStatus.CREATED).body(newRecord);
     }
 
@@ -194,7 +198,7 @@ public class RecordController {
                 updateRecordRequest.isCancelAlert(), updateRecordRequest.getMetadata());
 
         // update qdrant embedding
-        qdrantEmbeddingService.upsertRecordAsync(record, user);
+        qdrantJobService.queueUpsert(record);
         return ResponseEntity.ok().body(record);
     }
 
@@ -285,7 +289,7 @@ public class RecordController {
         }
         recordService.deleteRecord(record);
         // delete record from qdrant embedding if exists
-        qdrantEmbeddingService.deleteRecordIfExistsAsync(record);
+        qdrantJobService.queueDelete(id);
         return ResponseEntity.ok().body("Deleted record");
     }
 

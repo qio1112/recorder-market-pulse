@@ -15,7 +15,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -61,106 +60,6 @@ public class CronService {
         this.qdrantEmbeddingService = qdrantEmbeddingService;
     }
 
-    @Scheduled(cron = "0 5 10 * * MON-FRI")
-    public void runUpdateStockTask1005() {
-        runCronJob("Update stock option data 10:05", () ->
-                sendStockJobEmail("10:05", List.of(updateStockOptionDataJob("10:05")))
-        );
-    }
-
-    @Scheduled(cron = "0 30 13 * * MON-FRI")
-    public void runUpdateStockTask1330() {
-        runCronJob("Update stock option data 13:30", () ->
-                sendStockJobEmail("13:30", List.of(updateStockOptionDataJob("13:30")))
-        );
-    }
-
-    @Scheduled(cron = "0 30 16 * * MON-FRI")
-    public void runUpdateStockTask1630() {
-        runCronJob("Stock data jobs 16:30", () ->
-                sendStockJobEmail("16:30", List.of(
-                        updateStockOptionDataJob("16:30"),
-                        updateStockDailyHistory("16:30")
-                ))
-        );
-    }
-
-    @Scheduled(cron = "0 0 21 * * MON-FRI")
-    public void runUpdateStockTask2100() {
-        runCronJob("Stock data jobs 21:00", () ->
-                sendStockJobEmail("21:00", List.of(
-                        updateStockOptionDataJob("21:00"),
-                        updateStockDailyHistory("21:00")
-                ))
-        );
-    }
-
-    @Scheduled(cron = "0 30 21 * * MON-FRI")
-    public void runMarketNewsSummary2100Weekdays() {
-        runCronJob("Market news summary 21:00", () -> createMarketNewsSummaryRecord("21:00"));
-    }
-
-    @Scheduled(cron = "0 0 8 * * *")
-    public void runStatusUpdate0800() {
-        runCronJob("Status update 08:00", () -> serverStatusEmail("08:00"));
-    }
-
-    @Scheduled(cron = "0 0 12 * * *")
-    public void runStatusUpdate1200() {
-        runCronJob("Status update 12:00", () -> serverStatusEmail("12:00"));
-    }
-
-    @Scheduled(cron = "0 0 16 * * *")
-    public void runStatusUpdate1600() {
-        runCronJob("Status update 16:00", () -> serverStatusEmail("16:00"));
-    }
-
-    @Scheduled(cron = "0 0 20 * * *")
-    public void runStatusUpdate2000() {
-        runCronJob("Status update 20:00", () -> serverStatusEmail("20:00"));
-    }
-
-    @Scheduled(cron = "0 0 23 * * *")
-    public void runStatusUpdate2300() {
-        runCronJob("Status update 23:00", () -> serverStatusEmail("23:00"));
-    }
-
-    @Scheduled(cron = "0 30 21 * * SAT")
-    public void runCombineExpiredOptionParquetFiles2130Friday() {
-        runCronJob("Combine expired option parquet files Friday 21:30", () ->
-                combineExpiredOptionParquetFilesJob("Friday 21:30")
-        );
-    }
-
-    private void runCronJob(String jobName, Runnable job) {
-        try {
-            job.run();
-        } catch (Exception e) {
-            logger.error("Cron job failed: {}", jobName, e);
-            sendCronFailureEmail(jobName, e);
-            throw e;
-        }
-    }
-
-    private void sendCronFailureEmail(String jobName, Exception e) {
-        String today = dateTimeUtils.getCurrentDateString();
-        String message = e.getMessage();
-        String content = """
-                Cron job failed.
-
-                Job: %s
-                Date: %s
-                Error type: %s
-                Error: %s
-                """.formatted(
-                jobName,
-                today,
-                e.getClass().getName(),
-                StringUtils.isBlank(message) ? "(no error message)" : message
-        );
-        sendTaskEmail("FAILED: " + jobName + " " + today, content);
-    }
-
     public StockJobResult updateStockDailyHistory(String timeName) {
         String today = dateTimeUtils.getCurrentDateString();
         String fullTimeName = today + " " + timeName;
@@ -182,7 +81,7 @@ public class CronService {
         return new StockJobResult("Update stock option data", response);
     }
 
-    private void sendStockJobEmail(String timeName, List<StockJobResult> results) {
+    public void sendStockJobEmail(String timeName, List<StockJobResult> results) {
         String today = dateTimeUtils.getCurrentDateString();
         String fullTimeName = today + " " + timeName;
         List<StockJobResult> nonNullResults = results.stream()

@@ -30,7 +30,7 @@ Outputs:
 4. Backend `RecordController.createRecord` resolves authenticated user.
 5. Controller writes uploaded files to `recfile.upload.dir` and creates `RecFile` entities.
 6. `RecordService.createRecord` creates labels, enriches investment labels from metadata, saves files/record, and schedules alert if present.
-7. `QdrantEmbeddingService.upsertRecordAsync` sends title + labels + content to Market Pulse `/qdrant/upsert`.
+7. `QdrantJobService.queueUpsert` creates a durable `QDRANT_RECORD_UPSERT` execution.
 8. Backend returns created `Record`.
 
 Inputs:
@@ -53,7 +53,7 @@ Outputs:
 5. Backend checks record existence and modify permission.
 6. `RecordService.updateRecord` updates labels, metadata, files, alerts, and modification time.
 7. Removed file ids are deleted from DB and removed from disk.
-8. Qdrant vectors are asynchronously upserted with the updated embedding string.
+8. A durable `QDRANT_RECORD_UPSERT` execution refreshes vectors with the updated embedding string.
 
 Inputs:
 
@@ -172,7 +172,7 @@ Outputs:
 7. The async job summarizes the chat, asks the LLM for a one-line short title, and generates up to 5 labels.
 8. Backend strips reasoning/markdown/prose from title/label outputs and derives fallback title/labels when model output is unusable.
 9. Backend creates a private record with summary and transcript content.
-10. `QdrantEmbeddingService.upsertRecordAsync` indexes the new record.
+10. `QdrantJobService.queueUpsert` queues durable Qdrant indexing for the new record.
 
 Inputs:
 
@@ -350,3 +350,24 @@ Persistent data:
 - Backend log directory.
 - Market Pulse resources directory.
 - Qdrant storage volume.
+
+## Admin Job Management Flow
+
+1. Backend startup runs `BuiltInJobSeeder`.
+2. Seeder inserts or resets built-in rows in `scheduled_job_config` for existing long-term jobs.
+3. Admin calls `GET /api/admin-tools/jobs/dashboard` or `/jobs/configs` to view jobs and latest status.
+4. Admin can create custom schedules for registered handlers through `POST /api/admin-tools/jobs/configs`.
+5. Admin can update enabled/schedule/retry fields through `PUT /api/admin-tools/jobs/configs/{id}`.
+6. Admin can delete custom schedules through `DELETE /api/admin-tools/jobs/configs/{id}`; built-in jobs can only be disabled.
+7. Admin can manually trigger a job through `POST /api/admin-tools/jobs/configs/{id}/trigger`.
+8. Backend creates a `job_execution` row with `QUEUED`.
+9. `JobExecutionService` marks the row `RUNNING`, dispatches the matching `JobHandler`, then records `SUCCESS`, `FAILED`, `RETRYING`, or `SKIPPED`.
+10. Handler returns structured `JobResult` summary/details JSON for dashboard display.
+11. If retries are exhausted, backend sends a failure email that includes retry status and execution IDs.
+12. Admin calls `GET /api/admin-tools/jobs/executions` or `/jobs/executions/{id}` to view final status.
+
+Notes:
+
+- Only admin users can access job config, trigger, and execution APIs.
+- Manual triggers use saved job configuration only; trigger-time parameter overrides are not implemented yet.
+- The DB scheduler poller is enabled by default and replaces the old hardcoded `CronService` scheduled methods.

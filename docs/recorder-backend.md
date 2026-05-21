@@ -63,11 +63,11 @@ Base path: `/api/records`.
 - `POST /create-record`
   - Input: multipart form with JSON part `newRecordRequest` and optional `images`, `files`.
   - Output: created `Record`.
-  - Flow: creates `Record`, optional `AlertSchedule`, writes uploaded files, creates labels, saves record, schedules alert, async upserts Qdrant vectors.
+  - Flow: creates `Record`, optional `AlertSchedule`, writes uploaded files, creates labels, saves record, schedules alert, and queues a durable Qdrant upsert job.
 - `POST /update-record`
   - Input: multipart form with JSON part `updateRecordRequest` and optional new `images`, `files`.
   - Output: updated `Record`.
-  - Flow: loads record, checks owner/admin modify permission, updates fields/metadata/labels/files/alert, deletes removed files, async upserts Qdrant vectors.
+  - Flow: loads record, checks owner/admin modify permission, updates fields/metadata/labels/files/alert, deletes removed files, and queues a durable Qdrant upsert job.
 - `GET /record/{id}`
   - Input: record id.
   - Output: `Record`.
@@ -75,7 +75,7 @@ Base path: `/api/records`.
 - `GET /delete-record/{id}`
   - Input: record id.
   - Output: text confirmation.
-  - Flow: checks modify permission, deletes record/files/alerts, async deletes Qdrant vectors if present.
+  - Flow: checks modify permission, deletes record/files/alerts, and queues a durable Qdrant delete job.
 - `POST /list-records`
   - Input: `ListRecordsRequest` filters: labels, excluded labels, title substring, date bounds, public flag, created-by-user flag, page/sort.
   - Output: Spring `Page<Record>`.
@@ -108,7 +108,7 @@ Base path: `/api/llm`.
 - `POST /chat-record`
   - Input: `SaveLlmChatRecordRequest { messages, public }`.
   - Output: `SaveLlmChatRecordResponse { status, message }` with HTTP `202 Accepted`.
-  - Flow: admin-only, starts `LlmRecordService.createChatRecordAsync(...)` and returns immediately. The async job summarizes the current chat, asks the LLM for a one-line title, generates up to 5 labels, creates a record, and upserts it to Qdrant.
+  - Flow: admin-only, starts `LlmRecordService.createChatRecordAsync(...)` and returns immediately. The async job summarizes the current chat, asks the LLM for a one-line title, generates up to 5 labels, creates a record, and queues a durable Qdrant upsert job.
 
 ### `AdminToolsController`
 
@@ -117,6 +117,35 @@ Base path: `/api/admin-tools`.
 - `POST /market-news-summary-record`
   - Output: `{ status: "started", message }`.
   - Flow: admin-only, starts `CronService.createManualMarketNewsSummaryRecordAsync()` and returns immediately. The yfinance/LLM work continues in the background.
+- `GET /jobs/configs`
+  - Output: list of job configs.
+  - Flow: admin-only, returns seeded and custom `scheduled_job_config` rows for the job dashboard.
+- `GET /jobs/dashboard`
+  - Output: job configs, latest execution by job key, and recent executions for the admin dashboard.
+  - Flow: admin-only.
+- `GET /jobs/configs/{id}`
+  - Output: one job config.
+  - Flow: admin-only.
+- `POST /jobs/configs`
+  - Input: job key, display name, registered job type, schedule type, schedule fields, parameters JSON, retry/max runtime/concurrency settings, and description.
+  - Output: created custom job config.
+  - Flow: admin-only. Custom configs can only target registered backend `JobHandler` types.
+- `PUT /jobs/configs/{id}`
+  - Input: nullable fields for `enabled`, cron/interval, parameters JSON, retry settings, max runtime, and concurrency.
+  - Output: updated job config.
+  - Flow: admin-only.
+- `DELETE /jobs/configs/{id}`
+  - Output: `{ status: "deleted" }`.
+  - Flow: admin-only. Built-in jobs cannot be deleted; disable them instead.
+- `POST /jobs/configs/{id}/trigger`
+  - Output: accepted `JobExecutionResponse` with execution id and initial status.
+  - Flow: admin-only, manually queues a job using the saved config. Trigger-time parameter overrides are not supported yet.
+- `GET /jobs/executions`
+  - Output: paged execution history sorted by creation time descending.
+  - Flow: admin-only.
+- `GET /jobs/executions/{id}`
+  - Output: execution detail with status, summary, details JSON, retry status, and error fields.
+  - Flow: admin-only.
 
 ### `RecFileController`
 
@@ -240,7 +269,7 @@ Record-oriented LLM helpers:
   - Summarizes the chat.
   - Generates a one-line short title, stripping reasoning/markdown/prose. If unusable, derives a title from the summary/transcript.
   - Generates up to 5 labels, preferring single words while allowing compact phrases. If unusable, derives fallback labels.
-  - Creates the record and asynchronously upserts Qdrant vectors.
+  - Creates the record and queues a durable Qdrant upsert job.
 - `createChatRecordAsync(messages, isPublic, user) -> CompletableFuture<Void>`
   - Fire-and-forget wrapper used by `/api/llm/chat-record`.
   - Copies messages before leaving the request thread and logs success/failure.
@@ -252,6 +281,7 @@ Gateway to Market Pulse `/qdrant` endpoints:
 - `upsertRecordAsync(record, user)`: builds `QdrantUpsertRequest` from record id, user id, public flag, embedding text, labels, and collection.
 - `upsertRecordSync(record, user)`: synchronous variant used by startup/bootstrap flows.
 - `deleteRecordIfExistsAsync(record)`: checks vector existence and deletes if present.
+- `deleteRecordIfExistsSync(recordId)`: synchronous variant used by durable Qdrant delete jobs.
 - `querySimilarRecords(queryText, user, threshold, limit)`: returns `QdrantQueryResult` values from vector search.
   - `QdrantQueryResult.chunks` contains matched chunk text from Qdrant payloads. Related-record UI and LLM chat context should use chunks rather than loading full record content when possible.
 - `recordExists(recordId)`: checks vector presence.
@@ -268,18 +298,60 @@ Gateway to Market Pulse `/qdrant` endpoints:
 ### Scheduling And Startup
 
 - `ScheduleAlertService`: schedules one-time or recurring record alerts and cancels scheduled tasks by record id.
-- `CronService`: scheduled background jobs for Market Pulse health/data refresh and notifications.
-  - Stock option/data update schedules run weekdays only:
+- `CronService`: reusable job logic for Market Pulse data refresh, market-news record creation, and notifications. Scheduling is now handled by database-backed built-in jobs through `JobSchedulerService`.
+  - Built-in stock option/data update schedules run weekdays only:
     - `0 5 10 * * MON-FRI`
     - `0 30 13 * * MON-FRI`
     - `0 30 16 * * MON-FRI`
     - `0 0 21 * * MON-FRI`
   - When a scheduled stock update runs multiple jobs together, such as option data plus daily history at 16:30/21:00, it sends one combined email with all job names/results.
-  - Daily weekday market-news summary job runs at `0 0 21 * * MON-FRI`.
+  - Daily weekday market-news summary job runs at `0 30 21 * * MON-FRI`.
   - It calls Market Pulse news summaries for default tracked news symbols, sorts symbols alphabetically, and creates one public record per 5 symbols.
   - Each news record has labels `MARKET_NEWS_SUMMARY`, `MARKET_PULSE`, current date, and the chunk’s uppercase symbols.
   - Manual admin-tool runs use the same chunking/labeling behavior but include a timestamp in the title and run asynchronously.
 - `StartupRunner`: seeds roles/labels/admin user, restores alert schedules, and can synchronize existing records into Qdrant.
+- `BuiltInJobSeeder`: seeds built-in job definitions into `scheduled_job_config` on every backend startup. In the first version, built-in definitions are reset from code on startup so existing long-term jobs are always present after deploys.
+- `JobSchedulerService`: active database-backed scheduler poller, enabled by default through `jobs.scheduler.enabled=true`.
+- `JobExecutionService`: shared job execution lifecycle, status tracking, retry attempts, final failure email for non-status-check jobs, and 30-day retention support. Status-check jobs store failures for the dashboard but do not send admin failure emails.
+- `JobDispatcher` and `JobHandler`: reusable job execution framework. Handlers wrap existing domain service methods and return structured `JobResult` details for dashboard use.
+
+## Job System
+
+The backend now has a database-backed job framework for admin-visible long-running work.
+
+Tables:
+
+- `scheduled_job_config`: built-in job definitions, schedule settings, retry settings, parameters JSON, next/last run timestamps, and built-in metadata.
+- `job_execution`: every queued/running/completed job run, including trigger type, status, attempt count, summary, details JSON, retry status, error fields, and retention timestamp.
+
+Implemented built-in job types:
+
+- `MARKET_PULSE_HEALTH_CHECK`
+- `LLM_HEALTH_CHECK`
+- `SERVER_STATUS_EMAIL`
+- `STOCK_OPTION_DATA_UPDATE`
+- `STOCK_DAILY_HISTORY_UPDATE`
+- `STOCK_AFTER_CLOSE_REFRESH`
+- `MARKET_NEWS_SUMMARY_RECORD`
+- `COMBINE_EXPIRED_OPTION_PARQUET`
+- `JOB_EXECUTION_CLEANUP`
+- `STOCK_DATA_FRESHNESS_CHECK`
+- `OPTION_DATA_FRESHNESS_CHECK`
+- `QDRANT_RECORD_UPSERT`
+- `QDRANT_RECORD_DELETE`
+- `QDRANT_CONSISTENCY_CHECK`
+
+Admin API behavior:
+
+- Only admin users can view/edit job configs, trigger jobs, or view execution history.
+- Admin users can edit and trigger built-in jobs. They can also create/delete custom schedules for registered handler types; built-in jobs are reset from code on startup and cannot be deleted.
+- Manual triggers run with the saved job config; parameter overrides are deferred.
+- Retry is framework-level and records retry status in `job_execution`. Current retry attempts run immediately; delayed retry scheduling is tracked in the follow-up plan.
+- Failure emails are sent only after all retry attempts are exhausted.
+- Stale `QUEUED` or `RUNNING` executions are marked `TIMEOUT` when they remain active longer than the job config's `max_runtime_seconds` value. This runs on every scheduler poll and before a new execution is queued for the same job key, so interrupted async tasks or container rebuilds do not block future runs forever.
+- Stock data freshness, option data freshness, and Qdrant consistency checks are built-in daily cron jobs scheduled for `22:00` America/New_York by default. Option data freshness uses the latest successful `STOCK_AFTER_CLOSE_REFRESH` execution as its freshness reference; if today is a trade day and that latest success is before today, the check fails. The same check still records current option symbols with expiry counts in `details_json` for dashboard review. Job execution cleanup runs daily at `23:00`.
+- Job execution rows use a 30-day retention window. The cleanup job deletes expired rows.
+- Record create/update/delete and chat-to-record flows now queue durable Qdrant upsert/delete executions instead of relying only on fire-and-forget `@Async` calls.
 
 ## Persistence Model
 

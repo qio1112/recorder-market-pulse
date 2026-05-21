@@ -311,6 +311,9 @@ Responsibilities:
   - `combine_existing_option_files(option_path_name)`: utility for combining option files.
 - `main/utils/logger_utils.py`
   - `setup_logging(logger_name, log_file_name="log.txt")`: rotating file logger under resources logs.
+- `main/api/logging_config.py`
+  - Adds timestamp formatting to Uvicorn log handlers.
+  - Filters Uvicorn access logs for internal `/health` checks so Docker/backend health polling does not fill the logs.
 - `main/utils/plot_utils.py`
   - `plot_stock(...)`: candlestick/stock plotting.
   - `plot_stock_with_option(...)`: overlays stock and option data.
