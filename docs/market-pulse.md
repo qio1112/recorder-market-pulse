@@ -34,6 +34,8 @@
   - Local server startup helper.
 - `Dockerfile`
   - Containerizes the FastAPI service.
+- `docker-entrypoint.sh`
+  - Creates/repairs the container virtual environment, installs pinned requirements, then upgrades `yfinance` to the latest available version at startup before launching the service.
 
 ## API Layer
 

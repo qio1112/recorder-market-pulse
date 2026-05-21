@@ -23,6 +23,9 @@ fi
 echo "Installing Python dependencies from ${REQUIREMENTS_FILE}"
 "${VENV_PATH}/bin/python" -m pip install --no-cache-dir -r "${REQUIREMENTS_FILE}"
 
+echo "Upgrading yfinance to the latest available version"
+"${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade yfinance
+
 export PATH="${VENV_PATH}/bin:${PATH}"
 export VIRTUAL_ENV="${VENV_PATH}"
 
