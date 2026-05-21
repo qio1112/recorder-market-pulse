@@ -31,11 +31,20 @@
 
       <div class="job-table-wrap">
         <table class="job-table">
+          <colgroup>
+            <col class="job-col">
+            <col class="schedule-col">
+            <col class="date-col">
+            <col class="date-col">
+            <col class="status-col">
+            <col class="actions-col">
+          </colgroup>
           <thead>
             <tr>
               <th>Job</th>
               <th>Schedule</th>
               <th>Next Run</th>
+              <th>Last Run</th>
               <th>Last Status</th>
               <th></th>
             </tr>
@@ -62,6 +71,7 @@
                   </div>
                 </td>
                 <td>{{ formatDate(group.nextRunAt) }}</td>
+                <td>{{ formatDate(group.latestRunAt) }}</td>
                 <td>
                   <span :class="['status-pill', statusClass(displayStatus(group))]">
                     {{ displayStatus(group) || 'No runs' }}
@@ -90,7 +100,7 @@
                 </td>
               </tr>
               <tr v-if="expandedHistoryGroupKey === group.groupKey" class="history-row">
-                <td colspan="5">
+                <td colspan="6">
                   <div class="history-list">
                     <button
                       v-for="execution in group.history"
@@ -120,11 +130,20 @@
 
       <div class="job-table-wrap">
         <table class="job-table">
+          <colgroup>
+            <col class="job-col">
+            <col class="schedule-col">
+            <col class="date-col">
+            <col class="date-col">
+            <col class="status-col">
+            <col class="actions-col">
+          </colgroup>
           <thead>
             <tr>
               <th>Job</th>
               <th>Schedules</th>
               <th>Next Run</th>
+              <th>Last Run</th>
               <th>Last Status</th>
               <th></th>
             </tr>
@@ -151,6 +170,7 @@
                   </div>
                 </td>
                 <td>{{ formatDate(group.nextRunAt) }}</td>
+                <td>{{ formatDate(group.latestRunAt) }}</td>
                 <td>
                   <span :class="['status-pill', statusClass(displayStatus(group))]">
                     {{ displayStatus(group) || 'No runs' }}
@@ -179,7 +199,7 @@
                 </td>
               </tr>
               <tr v-if="expandedHistoryGroupKey === group.groupKey" class="history-row">
-                <td colspan="5">
+                <td colspan="6">
                   <div class="history-list">
                     <button
                       v-for="execution in group.history"
@@ -209,11 +229,20 @@
 
       <div class="job-table-wrap">
         <table class="job-table">
+          <colgroup>
+            <col class="job-col">
+            <col class="schedule-col">
+            <col class="date-col">
+            <col class="date-col">
+            <col class="status-col">
+            <col class="actions-col">
+          </colgroup>
           <thead>
             <tr>
               <th>Job</th>
               <th>Schedules</th>
               <th>Next Run</th>
+              <th>Last Run</th>
               <th>Last Status</th>
               <th></th>
             </tr>
@@ -240,6 +269,7 @@
                   </div>
                 </td>
                 <td>{{ formatDate(group.nextRunAt) }}</td>
+                <td>{{ formatDate(group.latestRunAt) }}</td>
                 <td>
                   <span :class="['status-pill', statusClass(displayStatus(group))]">
                     {{ displayStatus(group) || 'No runs' }}
@@ -268,7 +298,7 @@
                 </td>
               </tr>
               <tr v-if="expandedHistoryGroupKey === group.groupKey" class="history-row">
-                <td colspan="5">
+                <td colspan="6">
                   <div class="history-list">
                     <button
                       v-for="execution in group.history"
@@ -677,6 +707,7 @@ export default {
         triggerJob: sortedJobs.find((job) => job.enabled) || sortedJobs[0],
         history: this.historyByJobType[jobType] || [],
         latestExecution,
+        latestRunAt: latestExecution?.startedAt || latestExecution?.createdAt || null,
         nextRunAt: enabledNextRuns[0] || null
       };
     },
@@ -811,9 +842,31 @@ export default {
 
 .job-table {
   width: 100%;
+  min-width: 1040px;
+  table-layout: fixed;
   border-collapse: collapse;
   margin-top: 0.5rem;
   font-size: 0.88rem;
+}
+
+.job-col {
+  width: 23%;
+}
+
+.schedule-col {
+  width: 25%;
+}
+
+.date-col {
+  width: 14%;
+}
+
+.status-col {
+  width: 10%;
+}
+
+.actions-col {
+  width: 14%;
 }
 
 .job-table th,
@@ -822,6 +875,7 @@ export default {
   padding: 0.45rem 0.45rem;
   border-bottom: 1px solid #e5e8ed;
   vertical-align: middle;
+  overflow-wrap: anywhere;
 }
 
 .job-table th {
@@ -843,6 +897,8 @@ export default {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
+  align-items: flex-start;
+  max-width: 100%;
 }
 
 .schedule-chip {
@@ -854,6 +910,10 @@ export default {
   cursor: pointer;
   font: inherit;
   font-size: 0.78rem;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
 }
 
 .schedule-chip.disabled {
@@ -863,7 +923,9 @@ export default {
 }
 
 .row-actions {
-  white-space: nowrap;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
 }
 
 .row-actions button,
@@ -875,10 +937,6 @@ export default {
   padding: 0.3rem 0.45rem;
   cursor: pointer;
   font-size: 0.82rem;
-}
-
-.row-actions button + button {
-  margin-left: 0.25rem;
 }
 
 .row-actions button:disabled {

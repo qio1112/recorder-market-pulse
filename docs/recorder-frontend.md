@@ -210,7 +210,8 @@ Actions:
 - `views/AdminToolsPage.vue`
   - Admin-only page under Tools.
   - Shows job status panels for Market Pulse, LLM, stock freshness, option freshness, and Qdrant count consistency.
-  - Groups schedules by job type so repeated built-in jobs, such as status email or stock/option updates at multiple times, appear as one job with multiple schedule chips.
+  - Groups schedules by job type so repeated built-in jobs, such as status email or stock/option updates at multiple times, appear as one job with multiple wrapping schedule chips.
+  - Job tables share fixed column widths across status, data-update, and other job sections, and show next run, most recent run time, and latest status.
   - Separates status-check jobs from data-update jobs. Data-update jobs include stock/option updates, after-close stock refreshes, market-news record generation, and expired option parquet combines.
   - Hides internal Qdrant record upsert/delete jobs from the dashboard job tables; only the Qdrant consistency check remains visible.
   - Each grouped job has one compact manual `Run` action. Triggered jobs show an immediate `STARTING` state with a spinner for at least one second before polling the real execution status.
