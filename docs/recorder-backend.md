@@ -117,9 +117,6 @@ Base path: `/api/llm`.
 
 Base path: `/api/admin-tools`.
 
-- `POST /market-news-summary-record`
-  - Output: `{ status: "started", message }`.
-  - Flow: admin-only, starts `CronService.createManualMarketNewsSummaryRecordAsync()` and returns immediately. The yfinance/LLM work continues in the background.
 - `GET /jobs/configs`
   - Output: list of job configs.
   - Flow: admin-only, returns seeded and custom `scheduled_job_config` rows for the job dashboard.
@@ -149,6 +146,8 @@ Base path: `/api/admin-tools`.
 - `GET /jobs/executions/{id}`
   - Output: execution detail with status, summary, details JSON, retry status, and error fields.
   - Flow: admin-only.
+
+Legacy manual endpoints should prefer the DB-backed job trigger flow. For Market News, use the relevant `MARKET_NEWS_SUMMARY_RECORD` job config trigger rather than adding another one-off async endpoint.
 
 ### `RecFileController`
 
@@ -300,7 +299,7 @@ Gateway to Market Pulse `/qdrant` endpoints:
 
 ### Scheduling And Startup
 
-- `ScheduleAlertService`: database-backed scheduler for user record alerts. It stores one-time or recurring alert definitions in `alert_schedule`, polls due `next_run_at` rows every 5 seconds by default (`alerts.scheduler.poll-delay-ms`), sends alert emails, records each attempt in `alert_execution`, and rolls recurring schedules forward.
+- `ScheduleAlertService`: database-backed scheduler for user record alerts. It stores one-time or recurring alert definitions in `alert_schedule`, polls due `next_run_at` rows every 5 seconds by default (`alerts.scheduler.poll-delay-ms`), sends alert emails, records each attempt in `alert_execution`, and rolls recurring schedules forward. Recurring alert clock time is interpreted in `application.time-zone`, even if MySQL/JPA reloads the stored timestamp as UTC.
 - `CronService`: reusable job logic for Market Pulse data refresh, market-news record creation, and notifications. Scheduling is now handled by database-backed built-in jobs through `JobSchedulerService`.
   - Built-in stock option/data update schedules run weekdays only:
     - `0 5 10 * * MON-FRI`
@@ -320,7 +319,7 @@ Gateway to Market Pulse `/qdrant` endpoints:
 
 ## Job System
 
-The backend now has a database-backed job framework for admin-visible long-running work.
+The backend has a database-backed job framework for admin-visible long-running work. See [Scheduling And Admin Operations](./scheduling-and-admin.md) for the operational summary and current dashboard rules.
 
 Tables:
 
@@ -355,6 +354,25 @@ Admin API behavior:
 - Stock data freshness, option data freshness, and Qdrant consistency checks are built-in daily cron jobs scheduled for `22:00` America/New_York by default. Option data freshness uses the latest successful `STOCK_AFTER_CLOSE_REFRESH` execution as its freshness reference; if today is a trade day and that latest success is before today, the check fails. The same check still records current option symbols with expiry counts in `details_json` for dashboard review. Job execution cleanup runs daily at `23:00`.
 - Job execution rows use a 30-day retention window. The cleanup job deletes expired rows.
 - Record create/update/delete and chat-to-record flows now queue durable Qdrant upsert/delete executions instead of relying only on fire-and-forget `@Async` calls.
+
+## Record Alert Scheduling
+
+Record alerts are a user feature and use separate tables from admin jobs.
+
+Tables:
+
+- `alert_schedule`: one active schedule per record, with `alert_type`, `time_at`, `weekdays`, `enabled`, `next_run_at`, `last_sent_at`, and `last_error`.
+- `alert_execution`: each email attempt, with schedule id, record id, recipient, status, timestamps, and error message.
+
+Important rules:
+
+- `RecordController` creates an `AlertSchedule` only when the request includes the `ALERT` label, an `alertType`, and valid alert fields.
+- `RecordService.createRecord` and `updateRecord` call `ScheduleAlertService.scheduleAlert` after attaching the schedule to the saved record.
+- One-time schedules are disabled after a successful send.
+- Recurring schedules roll to the next selected weekday after a successful send.
+- Failed sends record `FAILED` in `alert_execution`, store `last_error`, and move `next_run_at` by `alerts.scheduler.retry-delay-minutes`.
+- `GET /api/records/alert-schedules` returns only active schedules. Normal users see their own record schedules; admins see all active schedules.
+- Timezone is critical: frontend sends ISO offset timestamps, backend scheduling uses `application.time-zone`, and API responses convert alert times to app timezone for display.
 
 ## Persistence Model
 

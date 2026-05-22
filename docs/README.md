@@ -1,6 +1,8 @@
 # Recorder Technical Documentation
 
-This directory documents the project at module and file/class level so future work can start from the technical flow instead of reading every source file.
+This directory is for technical implementation reference only. It documents architecture, module boundaries, data flows, backend/frontend/Market Pulse internals, scheduling, admin operations, and other details future coding sessions need before changing code.
+
+User-facing introductions and basic run/build notes belong in the module `README.md` files outside this directory. Do not move product introductions, marketing copy, or general user onboarding into `/docs`.
 
 ## Module Docs
 
@@ -9,8 +11,7 @@ This directory documents the project at module and file/class level so future wo
 - [Recorder Frontend](./recorder-frontend.md): Vue application structure, routes, stores, API clients, record workflows, LLM chat/admin tools, portfolio charts, calendar, and option tools.
 - [Market Pulse](./market-pulse.md): FastAPI service, stock/option data collection, parquet readers/converters, configurable LLM client, yfinance news summaries, Qdrant vector search, and task entry points.
 - [Data Flows](./data-flows.md): end-to-end flows for login, record CRUD, file upload/download, semantic search, related records, LLM labels/chat records, market-news records, portfolio charting, option history, and stock history refresh.
-- [Job System/Admin Dashboard Plan](./plan/job-system-and-admin-dashboard.md): implemented foundation for the database-backed job system, built-in cron seeding, admin job APIs, retries, and dashboard direction.
-- [Job System Follow-Up Tasks](./plan/job-system-follow-up-tasks.md): remaining delayed retry, idempotency, manual reindex, execution filter, and hardening tasks.
+- [Scheduling And Admin Operations](./scheduling-and-admin.md): current DB-backed admin job system, user record alerts, dashboard behavior, Qdrant background jobs, and timezone rules.
 
 ## Runtime Modules
 
@@ -21,3 +22,11 @@ The repository has three application modules:
 - `market_pulse`: Python / FastAPI service for market data, option data, LLM access/news summaries, and Qdrant-backed semantic search.
 
 The root `docker-compose.yml` runs `qdrant`, `market-pulse`, and `recorder-backend`. The backend depends on Market Pulse health and serves the API consumed by the frontend.
+
+## Before Changing Code
+
+For most future sessions, read these first:
+
+1. `system-architecture.md` for service boundaries and module ownership.
+2. `scheduling-and-admin.md` before touching jobs, alerts, admin tools, Qdrant background work, or timezone-sensitive schedule logic.
+3. The module doc for the code you are changing.

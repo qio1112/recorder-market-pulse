@@ -38,6 +38,7 @@ Recorder is a personal record management application with attachments, labels, a
 - Daily market-news summaries use yfinance news plus the LLM. Market Pulse reads default symbols from `resources/symbols/news_symbols.txt`, bounds news prompt size through `NEWS_LLM_*` env values, cleans reasoning/markdown from model output, and falls back to article text when the LLM fails. Backend creates public records in 5-symbol chunks, with date/market labels and uppercase symbol labels.
 - Scheduled stock-data jobs run weekdays only. When a schedule fires multiple stock jobs together, backend sends one combined email instead of one email per job.
 - A database-backed job framework handles admin-visible scheduled/manual jobs. Built-in job definitions are seeded into MySQL on startup, execution history is stored in `job_execution`, and the active DB scheduler poller replaces the old hardcoded `CronService` scheduled methods.
+- User record alerts use a separate database-backed scheduler with `alert_schedule` and `alert_execution`. They are not admin jobs: normal users can create alerts on their own records, admins can view all active alert schedules, and recurring alert clock times must be interpreted in `application.time-zone`.
 - Portfolio charts are computed in the frontend from investment records plus cached stock history. The backend stores raw trade records and historical market data; `portfolioUtils.js` computes holdings, cash, cost basis, realized/unrealized PnL, and aggregate series.
 
 ## Third-Party Libraries
@@ -72,3 +73,14 @@ Market Pulse:
 ## Service Boundary
 
 The frontend should call only backend `/api` endpoints. The backend is the application authority for authentication, authorization, records, files, labels, and persisted stock history. Market Pulse is treated as an internal data/ML service and is accessed by backend services through `MarketPulseApiService` and `QdrantEmbeddingService`. LLM calls also travel through backend APIs first, then through Market Pulse, so the browser never talks directly to LM Studio or any external LLM provider.
+
+## Operational Reference
+
+Background work is documented in [Scheduling And Admin Operations](./scheduling-and-admin.md). Use it as the starting point for:
+
+- admin job config/execution tables,
+- built-in job seeding,
+- record alert scheduling,
+- Qdrant async upsert/delete jobs,
+- admin dashboard grouping,
+- schedule timezone behavior.

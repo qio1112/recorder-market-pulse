@@ -1,24 +1,34 @@
-# recorder-frontend
+# Recorder Frontend
 
-## Project setup
-```
+Recorder Frontend is the browser app for Recorder. It provides the user interface for records, labels, file attachments, calendar views, portfolio tools, option tools, scheduled record alerts, account pages, LLM chat, and admin tools.
+
+This README is intentionally a short module introduction. Technical route maps, stores, API clients, component responsibilities, and implementation details are documented under [`../docs`](../docs/README.md).
+
+## Development
+
+Install dependencies:
+
+```bash
 npm install
 ```
 
-### Compiles and hot-reloads for development
-```
+Start the development server:
+
+```bash
 npm run serve
 ```
 
-### Compiles and minifies for production
-```
+Build production assets:
+
+```bash
 npm run build
 ```
 
-### Lints and fixes files
-```
-npm run lint
-```
+The production build is copied into the backend static resources by the root `build.sh` script.
 
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
+## Technical Reference
+
+For frontend implementation details, read:
+
+- [`../docs/recorder-frontend.md`](../docs/recorder-frontend.md)
+- [`../docs/data-flows.md`](../docs/data-flows.md)

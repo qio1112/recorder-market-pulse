@@ -29,6 +29,7 @@
 ### `src/api/config.js`
 
 - Exports `API_BASE_URL = '/api'`.
+- Exports `APP_TIME_ZONE = 'America/New_York'` for timezone-stable alert display.
 
 ### `src/api/http.js`
 
@@ -44,6 +45,7 @@
 - `RecordService.js`
   - `getRecords(ListRecordRequest) -> Page<Record>`.
   - `getRecordDetail(recordID) -> Record`.
+  - `getAlertSchedules() -> AlertScheduleResponse[]`.
   - `getRecFile(fileID) -> Blob`.
   - `deleteRecord(recordID) -> string`.
   - `addNewRecord(AddRecordRequest) -> Record`: sends multipart `newRecordRequest`, `images`, and `files`.
@@ -224,6 +226,8 @@ Actions:
   - Authenticated Tools page listing active record alert schedules.
   - Normal users see only schedules for records they created. Admin users see separate tables for their own scheduled records and schedules created by other users.
   - Each row shows record title, schedule text, author, next run, and last sent time; clicking a row opens the record detail page.
+  - The table is rendered directly in the `.vue` SFC template. Do not reintroduce inline child components with `template: "..."` strings because the production build uses runtime-only Vue and will not compile those templates.
+  - Alert timestamps are formatted with `APP_TIME_ZONE`, not the browser default timezone.
 - `components/TheHeader.vue`
   - Tools dropdown includes Portfolio, Option Return, Option History, Scheduled Records, admin-only LLM Chat, and admin-only Admin Tools.
 

@@ -42,6 +42,24 @@ Outputs:
 
 - `Record` row, label associations, file metadata, binary files, optional DB-backed alert schedule, optional Qdrant vectors.
 
+## Record Alert Scheduling Flow
+
+1. `RecordEditForm.vue` collects alert type, date/time, and recurring weekdays.
+2. The form sends `alertTime` as an ISO timestamp with offset and includes the `ALERT` label when an alert is selected.
+3. `RecordController` creates an `AlertSchedule` only when `ALERT`, `alertType`, and required alert fields are present.
+4. `RecordService` attaches the alert to the saved record and calls `ScheduleAlertService.scheduleAlert`.
+5. `ScheduleAlertService` computes `nextRunAt`, sets `enabled`, clears `lastError`, and saves `alert_schedule`.
+6. The scheduler poller checks due `next_run_at` rows every 5 seconds by default.
+7. When due, it creates an `alert_execution` row, sends email, then marks the execution `SUCCESS` or `FAILED`.
+8. One-time alerts are disabled after success. Recurring alerts roll forward to the next selected weekday.
+9. `/tools/scheduled-records` calls `GET /api/records/alert-schedules` to show active schedules only.
+
+Timezone notes:
+
+- The app timezone is `application.time-zone` / `APP_TIMEZONE`, currently `America/New_York`.
+- MySQL/JPA may reload a sent `15:30-04:00` timestamp as `19:30Z`. Recurring schedules must convert stored timestamps back to app timezone before extracting hour/minute.
+- Backend schedule-list responses and frontend display code both normalize alert times to app timezone.
+
 ## Record Update Flow
 
 1. `EditRecord.vue` loads existing record with `GET /api/records/record/{id}`.
@@ -262,16 +280,37 @@ Outputs:
 
 - Updated backend `stock_daily_history` table.
 
+## Admin Job Management Flow
+
+1. Backend startup runs `BuiltInJobSeeder`.
+2. Seeder inserts or resets built-in rows in `scheduled_job_config` for existing long-term jobs.
+3. Admin calls `GET /api/admin-tools/jobs/dashboard` or `/jobs/configs` to view jobs and latest status.
+4. Admin updates enabled/schedule/retry fields through `PUT /api/admin-tools/jobs/configs/{id}`.
+5. Admin manually triggers a job through `POST /api/admin-tools/jobs/configs/{id}/trigger`.
+6. Backend creates a `job_execution` row with `QUEUED`.
+7. `JobExecutionService` marks the row `RUNNING`, dispatches the matching `JobHandler`, then records the final status and structured details.
+8. Stale `QUEUED`/`RUNNING` rows older than `max_runtime_seconds` are marked `TIMEOUT` during polling so future runs are not blocked.
+9. Failure email is sent after retries are exhausted, except for status-check jobs.
+10. Admin views final status/details from job history in the dashboard.
+
+Notes:
+
+- Only admin users can access job config, trigger, and execution APIs.
+- Manual triggers use saved job configuration only; trigger-time parameter overrides are not implemented yet.
+- The DB scheduler poller is enabled by default and replaces old hardcoded `@Scheduled` cron methods.
+- Qdrant record upsert/delete jobs are internal async consistency jobs and are hidden from the dashboard table. Qdrant count consistency is visible.
+
 ## Scheduled Stock Data Jobs Flow
 
-1. `CronService` runs stock option/data update schedules only on weekdays:
+1. `BuiltInJobSeeder` seeds stock option/data update schedules only on weekdays:
    - `10:05`: option/stock data update task.
    - `13:30`: option/stock data update task.
    - `16:30`: option/stock data update task plus backend daily-history refresh.
    - `21:00`: option/stock data update task plus backend daily-history refresh.
-2. Each job returns a `StockJobResult { name, detail }` to the schedule handler.
-3. When multiple jobs run in the same schedule, `sendStockJobEmail` sends one combined email containing each job name and result/detail.
-4. If a job has no detail string, the email falls back to the job name.
+2. `JobSchedulerService` queues due `scheduled_job_config` rows.
+3. Each handler delegates to existing service logic such as `CronService` and returns a `JobResult` with summary/details.
+4. When multiple jobs run in the same schedule, `sendStockJobEmail` sends one combined email containing each job name and result/detail.
+5. If a job has no detail string, the email falls back to the job name.
 
 Outputs:
 
@@ -280,8 +319,8 @@ Outputs:
 
 ## Market News Summary Flow
 
-1. Scheduled job `CronService.runMarketNewsSummary2100Weekdays` runs at `0 0 21 * * MON-FRI`.
-2. Manual admin trigger on `/tools/admin` calls `POST /api/admin-tools/market-news-summary-record`, which starts the same work asynchronously and returns immediately.
+1. `BuiltInJobSeeder` seeds the `MARKET_NEWS_SUMMARY_RECORD` job to run at `0 30 21 * * MON-FRI`.
+2. Manual admin trigger on `/tools/admin` calls `POST /api/admin-tools/jobs/configs/{id}/trigger` for the `MARKET_NEWS_SUMMARY_RECORD` config.
 3. Backend calls `MarketPulseApiService.getTrackedStockNewsSummary()`.
 4. Market Pulse `/news/stock-summary` reads tracked news symbols from `market_pulse/resources/symbols/news_symbols.txt` when no symbols are provided.
 5. Market Pulse calls `yf.Ticker(symbol).news`, normalizes articles, bounds article text with `NEWS_LLM_*` env settings, and uses the configured LLM to produce one paragraph per symbol.
@@ -290,7 +329,7 @@ Outputs:
 8. Backend creates one public record per 5 symbols to avoid overly long records.
 9. Each record title includes the date or manual timestamp plus the chunk’s symbols.
 10. Each record gets labels `MARKET_NEWS_SUMMARY`, `MARKET_PULSE`, current date, and uppercase symbol labels.
-11. Each created record is asynchronously upserted to Qdrant.
+11. Each created record queues a durable `QDRANT_RECORD_UPSERT` execution.
 
 Inputs:
 
@@ -350,24 +389,3 @@ Persistent data:
 - Backend log directory.
 - Market Pulse resources directory.
 - Qdrant storage volume.
-
-## Admin Job Management Flow
-
-1. Backend startup runs `BuiltInJobSeeder`.
-2. Seeder inserts or resets built-in rows in `scheduled_job_config` for existing long-term jobs.
-3. Admin calls `GET /api/admin-tools/jobs/dashboard` or `/jobs/configs` to view jobs and latest status.
-4. Admin can create custom schedules for registered handlers through `POST /api/admin-tools/jobs/configs`.
-5. Admin can update enabled/schedule/retry fields through `PUT /api/admin-tools/jobs/configs/{id}`.
-6. Admin can delete custom schedules through `DELETE /api/admin-tools/jobs/configs/{id}`; built-in jobs can only be disabled.
-7. Admin can manually trigger a job through `POST /api/admin-tools/jobs/configs/{id}/trigger`.
-8. Backend creates a `job_execution` row with `QUEUED`.
-9. `JobExecutionService` marks the row `RUNNING`, dispatches the matching `JobHandler`, then records `SUCCESS`, `FAILED`, `RETRYING`, or `SKIPPED`.
-10. Handler returns structured `JobResult` summary/details JSON for dashboard display.
-11. If retries are exhausted, backend sends a failure email that includes retry status and execution IDs.
-12. Admin calls `GET /api/admin-tools/jobs/executions` or `/jobs/executions/{id}` to view final status.
-
-Notes:
-
-- Only admin users can access job config, trigger, and execution APIs.
-- Manual triggers use saved job configuration only; trigger-time parameter overrides are not implemented yet.
-- The DB scheduler poller is enabled by default and replaces the old hardcoded `CronService` scheduled methods.
