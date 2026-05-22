@@ -72,6 +72,9 @@ Base path: `/api/records`.
   - Input: record id.
   - Output: `Record`.
   - Flow: loads record and checks visibility.
+- `GET /alert-schedules`
+  - Output: active `AlertScheduleResponse` rows with record id/title, author, alert type, schedule fields, next run, and last sent time.
+  - Flow: authenticated users see only schedules for records they created; admins see all active schedules.
 - `GET /delete-record/{id}`
   - Input: record id.
   - Output: text confirmation.
@@ -297,7 +300,7 @@ Gateway to Market Pulse `/qdrant` endpoints:
 
 ### Scheduling And Startup
 
-- `ScheduleAlertService`: schedules one-time or recurring record alerts and cancels scheduled tasks by record id.
+- `ScheduleAlertService`: database-backed scheduler for user record alerts. It stores one-time or recurring alert definitions in `alert_schedule`, polls due `next_run_at` rows every 5 seconds by default (`alerts.scheduler.poll-delay-ms`), sends alert emails, records each attempt in `alert_execution`, and rolls recurring schedules forward.
 - `CronService`: reusable job logic for Market Pulse data refresh, market-news record creation, and notifications. Scheduling is now handled by database-backed built-in jobs through `JobSchedulerService`.
   - Built-in stock option/data update schedules run weekdays only:
     - `0 5 10 * * MON-FRI`
@@ -309,7 +312,7 @@ Gateway to Market Pulse `/qdrant` endpoints:
   - It calls Market Pulse news summaries for default tracked news symbols, sorts symbols alphabetically, and creates one public record per 5 symbols.
   - Each news record has labels `MARKET_NEWS_SUMMARY`, `MARKET_PULSE`, current date, and the chunk’s uppercase symbols.
   - Manual admin-tool runs use the same chunking/labeling behavior but include a timestamp in the title and run asynchronously.
-- `StartupRunner`: seeds roles/labels/admin user, restores alert schedules, and can synchronize existing records into Qdrant.
+- `StartupRunner`: seeds roles/labels/admin user and can synchronize existing records into Qdrant.
 - `BuiltInJobSeeder`: seeds built-in job definitions into `scheduled_job_config` on every backend startup. In the first version, built-in definitions are reset from code on startup so existing long-term jobs are always present after deploys.
 - `JobSchedulerService`: active database-backed scheduler poller, enabled by default through `jobs.scheduler.enabled=true`.
 - `JobExecutionService`: shared job execution lifecycle, status tracking, retry attempts, final failure email for non-status-check jobs, and 30-day retention support. Status-check jobs store failures for the dashboard but do not send admin failure emails.
@@ -360,7 +363,8 @@ Admin API behavior:
 - `Record`: title, content, owner, public flag, timestamps, labels, files, alert schedule, metadata JSON. Custom JSON getters expose core label/file fields and `createdBy`.
 - `Label`: label name, type (`DATE` or `REGULAR`), creator.
 - `RecFile`: file name, type (`IMAGE` or `REGULAR_FILE`), upload path, uploader, computed filesystem `Path`.
-- `AlertSchedule`: alert type (`ONE_TIME` or `RECURRING`), time, weekdays, linked record.
+- `AlertSchedule`: user-facing record alert definition. It stores alert type (`ONE_TIME` or `RECURRING`), time, weekdays, linked record, enabled flag, `next_run_at`, `last_sent_at`, and last error.
+- `AlertExecution`: durable record of each alert email attempt with schedule id, record id, recipient, status, timestamps, and error message.
 - `PasswordResetToken`: hashed reset token, expiration/usage metadata, linked user.
 - `StockDailyHistory`: symbol, trade date, OHLC, volume with unique `symbol + trade_date`.
 - `StringMapJsonConverter`: converts `Map<String,String>` metadata to/from JSON text.

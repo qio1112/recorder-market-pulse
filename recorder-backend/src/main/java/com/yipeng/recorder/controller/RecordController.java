@@ -12,6 +12,7 @@ import com.yipeng.recorder.request.ListRecordsRequest;
 import com.yipeng.recorder.request.NewRecordRequest;
 import com.yipeng.recorder.request.QdrantQueryRequest;
 import com.yipeng.recorder.request.UpdateRecordRequest;
+import com.yipeng.recorder.response.AlertScheduleResponse;
 import com.yipeng.recorder.response.RecordDailyCountDto;
 import com.yipeng.recorder.response.RelatedRecordResponse;
 import com.yipeng.recorder.service.LabelService;
@@ -37,6 +38,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -116,10 +118,12 @@ public class RecordController {
 
     private static AlertSchedule getAlertSchedule(NewRecordRequest newRecordRequest, Record newRecord) {
         AlertSchedule alertSchedule = null;
-        if (newRecordRequest.getLabels().contains("ALERT")
-                && newRecordRequest.getAlertType() != null
-                && (newRecordRequest.getAlertType() == AlertType.ONE_TIME && newRecordRequest.getAlertTime() != null)
-                    || (newRecordRequest.getAlertType() == AlertType.RECURRING && newRecordRequest.getRecurringAlertWeekDays() != null && !newRecordRequest.getRecurringAlertWeekDays().isBlank())) {
+        if (shouldCreateAlertSchedule(
+                newRecordRequest.getLabels(),
+                newRecordRequest.getAlertType(),
+                newRecordRequest.getAlertTime(),
+                newRecordRequest.getRecurringAlertWeekDays()
+        )) {
             alertSchedule = new AlertSchedule(newRecord, newRecordRequest.getAlertType(), newRecordRequest.getAlertTime(), newRecordRequest.getRecurringAlertWeekDays());
         }
         return alertSchedule;
@@ -205,14 +209,29 @@ public class RecordController {
     private static AlertSchedule getAlertSchedule(UpdateRecordRequest updateRecordRequest, Record record) {
         AlertSchedule alertSchedule = null;
         if (!updateRecordRequest.isCancelAlert()) {
-            if (updateRecordRequest.getLabels().contains("ALERT")
-                    && updateRecordRequest.getAlertType() != null
-                    && (updateRecordRequest.getAlertType() == AlertType.ONE_TIME && updateRecordRequest.getAlertTime() != null)
-                    || (updateRecordRequest.getAlertType() == AlertType.RECURRING && updateRecordRequest.getRecurringAlertWeekDays() != null && !updateRecordRequest.getRecurringAlertWeekDays().isBlank())) {
+            if (shouldCreateAlertSchedule(
+                    updateRecordRequest.getLabels(),
+                    updateRecordRequest.getAlertType(),
+                    updateRecordRequest.getAlertTime(),
+                    updateRecordRequest.getRecurringAlertWeekDays()
+            )) {
                 alertSchedule = new AlertSchedule(record, updateRecordRequest.getAlertType(), updateRecordRequest.getAlertTime(), updateRecordRequest.getRecurringAlertWeekDays());
             }
         }
         return alertSchedule;
+    }
+
+    private static boolean shouldCreateAlertSchedule(List<String> labels,
+                                                     AlertType alertType,
+                                                     ZonedDateTime alertTime,
+                                                     String recurringAlertWeekDays) {
+        if (labels == null || !labels.contains("ALERT") || alertType == null) {
+            return false;
+        }
+        return (alertType == AlertType.ONE_TIME && alertTime != null)
+                || (alertType == AlertType.RECURRING
+                && recurringAlertWeekDays != null
+                && !recurringAlertWeekDays.isBlank());
     }
 
     @GetMapping(value="/record/{id}")
@@ -228,6 +247,12 @@ public class RecordController {
             throw new ForbiddenException();
         }
         return ResponseEntity.ok().body(record);
+    }
+
+    @GetMapping(value = "/alert-schedules")
+    public ResponseEntity<List<AlertScheduleResponse>> listAlertSchedules() {
+        User user = userService.findUserFromAuthentication();
+        return ResponseEntity.ok(recordService.listVisibleActiveAlertSchedules(user));
     }
 
     @GetMapping(value="/record/{id}/related")

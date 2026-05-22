@@ -32,6 +32,11 @@ export async function getRelatedRecords(recordID) {
   }
 }
 
+export async function getAlertSchedules() {
+  const response = await http.get('/records/alert-schedules');
+  return response.data;
+}
+
 export async function getRecFile(fileID) {
   try {
     const response = await http.get(`/recfile/${fileID}`, { responseType: 'blob' });

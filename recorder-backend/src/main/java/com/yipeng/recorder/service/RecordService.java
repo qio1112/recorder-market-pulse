@@ -6,13 +6,16 @@ import com.yipeng.recorder.repository.AlertScheduleRepository;
 import com.yipeng.recorder.repository.LabelRepository;
 import com.yipeng.recorder.repository.RecFileRepository;
 import com.yipeng.recorder.repository.RecordRepository;
+import com.yipeng.recorder.response.AlertScheduleResponse;
 import com.yipeng.recorder.response.RecordDailyCountDto;
 import com.yipeng.recorder.utils.DateTimeUtils;
 import com.yipeng.recorder.utils.LabelType;
 import jakarta.transaction.Transactional;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -23,8 +26,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -47,6 +52,9 @@ public class RecordService {
     private final DateTimeUtils dateTimeUtils;
 
     private final ScheduleAlertService scheduleAlertService;
+
+    @Value("${application.time-zone:America/New_York}")
+    private String appTimeZone;
 
     @Autowired
     public RecordService(RecordRepository recordRepository,
@@ -77,13 +85,41 @@ public class RecordService {
         record.setMetadata(metadata);
         record.setLabels(labels);
         Record newRecord = recordRepository.save(record);
-        scheduleAlertService.scheduleAlert(alertSchedule);
+        scheduleAlertService.scheduleAlert(newRecord.getAlertSchedule());
         logger.info("Created new record. ID: {}, title: {}, createdBy: {}, isPublic: {}", newRecord.getId(), newRecord.getTitle(), newRecord.getCreatedBy().getUsername(), isPublic);
         return newRecord;
     }
 
     public Record getRecordById(Long id) {
         return recordRepository.findById(id).orElse(null);
+    }
+
+    public List<AlertScheduleResponse> listVisibleActiveAlertSchedules(User user) {
+        ZonedDateTime now = ZonedDateTime.now();
+        List<AlertSchedule> schedules = user.isAdmin()
+                ? alertScheduleRepository.findDashboardSchedules(now)
+                : alertScheduleRepository.findDashboardSchedulesForUser(user.getId(), now);
+        return schedules.stream()
+                .map(schedule -> ensureDashboardScheduleHasNextRun(schedule, now))
+                .filter(schedule -> schedule.isEnabled() && schedule.getNextRunAt() != null)
+                .sorted(Comparator.comparing(AlertSchedule::getNextRunAt))
+                .map(schedule -> AlertScheduleResponse.from(schedule, appZone()))
+                .toList();
+    }
+
+    private AlertSchedule ensureDashboardScheduleHasNextRun(AlertSchedule schedule, ZonedDateTime now) {
+        if (schedule.getNextRunAt() == null || !schedule.isEnabled()) {
+            ZonedDateTime nextRunAt = scheduleAlertService.computeNextRunAt(schedule, now);
+            schedule.setNextRunAt(nextRunAt);
+            schedule.setEnabled(nextRunAt != null);
+            schedule.setLastError(null);
+            return alertScheduleRepository.save(schedule);
+        }
+        return schedule;
+    }
+
+    private ZoneId appZone() {
+        return ZoneId.of(StringUtils.defaultIfBlank(appTimeZone, "America/New_York"));
     }
 
     @Transactional
@@ -107,6 +143,7 @@ public class RecordService {
         if (isCancelAlert) {
             // Remove alert schedule if cancel alert is requested
             if (oldAlertSchedule != null) {
+                scheduleAlertService.cancelAlertsForRecord(record.getId());
                 alertScheduleRepository.delete(oldAlertSchedule);
             }
             record.setAlertSchedule(null);
@@ -129,15 +166,8 @@ public class RecordService {
         Record savedRecord = recordRepository.save(record);
 
         // Handle scheduling changes
-        if (isCancelAlert) {
-            // Alert schedule removed
-            scheduleAlertService.cancelAlertsForRecord(record.getId());
-        } else if (oldAlertSchedule == null && alertSchedule != null) {
-            // New alert schedule added
-            scheduleAlertService.scheduleAlert(savedRecord.getAlertSchedule());
-        } else if (oldAlertSchedule != null && alertSchedule != null && !oldAlertSchedule.isSameAlert(alertSchedule)) {
-            // Alert schedule modified
-            scheduleAlertService.cancelAlertsForRecord(record.getId());
+        if (!isCancelAlert && alertSchedule != null) {
+            // New or updated alert schedule persisted with a recomputed next run.
             scheduleAlertService.scheduleAlert(savedRecord.getAlertSchedule());
         }
 

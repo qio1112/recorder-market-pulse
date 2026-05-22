@@ -10,6 +10,7 @@ import EditRecord from '../views/EditRecord.vue'
 import PortfolioPage from '../views/PortfolioPage.vue'
 import OptionReturn from '../views/OptionReturn.vue'
 import OptionHistoryPage from '../views/OptionHistoryPage.vue'
+import ScheduledRecordsPage from '../views/ScheduledRecordsPage.vue'
 import AdminLlmChatPage from '../views/AdminLlmChatPage.vue'
 import AdminToolsPage from '../views/AdminToolsPage.vue'
 import PageNotFound from '../views/PageNotFound.vue'
@@ -37,6 +38,7 @@ const router = createRouter({
     { path: '/tools/portfolio', component: PortfolioPage, meta: { requiresAuth: true } },
     { path: '/tools/option-return', component: OptionReturn, meta: { requiresAuth: true } },
     { path: '/tools/option-history', component: OptionHistoryPage, meta: { requiresAuth: true } },
+    { path: '/tools/scheduled-records', component: ScheduledRecordsPage, meta: { requiresAuth: true } },
     { path: '/tools/admin', component: AdminToolsPage, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/tools/llm-chat', component: AdminLlmChatPage, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/account', component: UserAccountInfo, meta: { requiresAuth: true } },

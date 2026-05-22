@@ -113,6 +113,7 @@
 </template>
 
 <script>
+import { APP_TIME_ZONE } from '../api/config.js'
 import { getRecordDetail, getRelatedRecords, getRecFile, deleteRecord } from '../api/RecordService.js'
 import ImagePreview from '../components/records/ImagePreview.vue'
 import RecordPreview from '../components/records/RecordPreview.vue'
@@ -278,7 +279,7 @@ export default {
     },
     formatDateTime(iso) {
       try {
-        return new Date(iso).toLocaleString();
+        return new Date(iso).toLocaleString([], { timeZone: APP_TIME_ZONE });
       } catch (e) {
         return iso;
       }
@@ -286,7 +287,11 @@ export default {
     formatTimePart(iso) {
       try {
         const date = new Date(iso);
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return date.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: APP_TIME_ZONE
+        });
       } catch (e) {
         return null;
       }

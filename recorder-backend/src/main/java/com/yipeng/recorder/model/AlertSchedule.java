@@ -9,7 +9,13 @@ import java.util.Map;
 import java.util.Objects;
 
 @Entity
-@Table(name = "alert_schedule")
+@Table(
+        name = "alert_schedule",
+        indexes = {
+                @Index(name = "idx_alert_schedule_next_run", columnList = "enabled,next_run_at"),
+                @Index(name = "idx_alert_schedule_record", columnList = "record_id")
+        }
+)
 public class AlertSchedule {
 
     @Id
@@ -33,11 +39,20 @@ public class AlertSchedule {
     @Column(name = "last_sent_at")
     private ZonedDateTime lastSentAt;
 
+    @Column(name = "next_run_at")
+    private ZonedDateTime nextRunAt;
+
+    @Column(name = "enabled", nullable = false)
+    private boolean enabled = true;
+
+    @Column(name = "last_error", columnDefinition = "TEXT")
+    private String lastError;
+
     @Column(name = "created_at", nullable = false)
     private ZonedDateTime createdAt;
 
     public boolean isValid() {
-        return alertType == AlertType.RECURRING || timeAt.isAfter(ZonedDateTime.now());
+        return alertType == AlertType.RECURRING || (timeAt != null && timeAt.isAfter(ZonedDateTime.now()));
     }
 
     public AlertSchedule(Record record, AlertType alertType, ZonedDateTime timeAt, String weekdays) {
@@ -64,13 +79,13 @@ public class AlertSchedule {
         if (otherAlertSchedule == null) {
             return false;
         }
-        if (id.equals(otherAlertSchedule.getId())) {
+        if (id != null && id.equals(otherAlertSchedule.getId())) {
             return true;
         }
         return record.getId().equals(otherAlertSchedule.getRecord().getId())
-                && (alertType == otherAlertSchedule.getAlertType() || alertType.equals(otherAlertSchedule.getAlertType()))
-                && (timeAt == otherAlertSchedule.getTimeAt() || timeAt.equals(otherAlertSchedule.getTimeAt()))
-                && (weekdays == otherAlertSchedule.getWeekdays() || weekdays.equals(otherAlertSchedule.getWeekdays()));
+                && Objects.equals(alertType, otherAlertSchedule.getAlertType())
+                && Objects.equals(timeAt, otherAlertSchedule.getTimeAt())
+                && Objects.equals(weekdays, otherAlertSchedule.getWeekdays());
     }
 
     public Long getId() {
@@ -121,6 +136,30 @@ public class AlertSchedule {
         this.lastSentAt = lastSentAt;
     }
 
+    public ZonedDateTime getNextRunAt() {
+        return nextRunAt;
+    }
+
+    public void setNextRunAt(ZonedDateTime nextRunAt) {
+        this.nextRunAt = nextRunAt;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public String getLastError() {
+        return lastError;
+    }
+
+    public void setLastError(String lastError) {
+        this.lastError = lastError;
+    }
+
     public ZonedDateTime getCreatedAt() {
         return createdAt;
     }
@@ -131,4 +170,3 @@ public class AlertSchedule {
 
 
 }
-

@@ -90,6 +90,7 @@ Routes:
 - `/tools/portfolio`: portfolio charts.
 - `/tools/option-return`: option return calculator.
 - `/tools/option-history`: option history charting.
+- `/tools/scheduled-records`: active record alert schedules.
 - `/tools/llm-chat`: admin-only LLM chat console.
 - `/tools/admin`: admin-only manual backend tools.
 - `/account`: user account.
@@ -191,6 +192,7 @@ Actions:
   - Loads record detail, seeds `RecordEditForm`; submits `EditRecordRequest`.
 - `components/records/RecordEditForm.vue`
   - Shared create/edit form for title, content, public flag, labels, metadata, alerts, existing files, removed files, new uploads.
+  - Alert inputs use date/time controls for one-time alerts and time plus weekday checkboxes for recurring alerts. Selecting an alert automatically includes the `ALERT` label required by the backend schedule creation flow.
   - Investment metadata helper ensures trade metadata fields when `INVESTMENT_REC` is selected.
   - Shows an LLM `Generate Labels` button only when the LLM connection check succeeds.
   - Generated labels are merged into the form without duplicating existing labels.
@@ -218,8 +220,12 @@ Actions:
   - Each grouped job has its own history dropdown backed by job-type execution history. Long history lists scroll, and selecting an execution shows admin-only details.
   - Status-check jobs include a `Run All` action that triggers every visible status check without changing data-update jobs.
   - Individual schedule chips open the schedule editor for that concrete existing `scheduled_job_config` row; the UI does not expose custom schedule creation yet.
+- `views/ScheduledRecordsPage.vue`
+  - Authenticated Tools page listing active record alert schedules.
+  - Normal users see only schedules for records they created. Admin users see separate tables for their own scheduled records and schedules created by other users.
+  - Each row shows record title, schedule text, author, next run, and last sent time; clicking a row opens the record detail page.
 - `components/TheHeader.vue`
-  - Tools dropdown includes Portfolio, Option Return, Option History, admin-only LLM Chat, and admin-only Admin Tools.
+  - Tools dropdown includes Portfolio, Option Return, Option History, Scheduled Records, admin-only LLM Chat, and admin-only Admin Tools.
 
 ## Calendar UI
 

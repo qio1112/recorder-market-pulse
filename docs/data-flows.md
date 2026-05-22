@@ -35,12 +35,12 @@ Outputs:
 
 Inputs:
 
-- Title, content, labels, public flag, metadata, optional alert fields, optional files/images.
+- Title, content, labels, public flag, metadata, optional alert fields, optional files/images. When an alert is selected, the form sends an ISO offset timestamp and includes the `ALERT` label.
 - Optional LLM-generated labels from `POST /api/llm/record-labels`.
 
 Outputs:
 
-- `Record` row, label associations, file metadata, binary files, optional alert schedule, optional Qdrant vectors.
+- `Record` row, label associations, file metadata, binary files, optional DB-backed alert schedule, optional Qdrant vectors.
 
 ## Record Update Flow
 
@@ -51,7 +51,7 @@ Outputs:
    - JSON part `updateRecordRequest`.
    - Optional new files/images.
 5. Backend checks record existence and modify permission.
-6. `RecordService.updateRecord` updates labels, metadata, files, alerts, and modification time.
+6. `RecordService.updateRecord` updates labels, metadata, files, alert schedule row/next run, and modification time.
 7. Removed file ids are deleted from DB and removed from disk.
 8. A durable `QDRANT_RECORD_UPSERT` execution refreshes vectors with the updated embedding string.
 

@@ -4,7 +4,6 @@ import com.yipeng.recorder.model.*;
 import com.yipeng.recorder.model.Record;
 import com.yipeng.recorder.repository.*;
 import com.yipeng.recorder.service.QdrantEmbeddingService;
-import com.yipeng.recorder.service.ScheduleAlertService;
 import com.yipeng.recorder.service.BuiltInJobSeeder;
 import com.yipeng.recorder.utils.LabelType;
 import com.yipeng.recorder.utils.RoleType;
@@ -28,8 +27,6 @@ public class StartupRunner implements CommandLineRunner {
     private final PasswordEncoder passwordEncoder;
     private final LabelRepository labelRepository;
     private final RecordRepository recordRepository;
-    private final AlertScheduleRepository alertScheduleRepository;
-    private final ScheduleAlertService scheduleAlertService;
     private final QdrantEmbeddingService qdrantEmbeddingService;
     private final BuiltInJobSeeder builtInJobSeeder;
 
@@ -45,8 +42,7 @@ public class StartupRunner implements CommandLineRunner {
     @Autowired
     public StartupRunner(UserRepository userRepository, RoleRepository roleRepository,
                          PasswordEncoder passwordEncoder, LabelRepository labelRepository,
-                         RecordRepository recordRepository, AlertScheduleRepository alertScheduleRepository,
-                         ScheduleAlertService scheduleAlertService,
+                         RecordRepository recordRepository,
                          QdrantEmbeddingService qdrantEmbeddingService,
                          BuiltInJobSeeder builtInJobSeeder) {
         this.userRepository = userRepository;
@@ -54,8 +50,6 @@ public class StartupRunner implements CommandLineRunner {
         this.passwordEncoder = passwordEncoder;
         this.labelRepository = labelRepository;
         this.recordRepository = recordRepository;
-        this.alertScheduleRepository = alertScheduleRepository;
-        this.scheduleAlertService = scheduleAlertService;
         this.qdrantEmbeddingService = qdrantEmbeddingService;
         this.builtInJobSeeder = builtInJobSeeder;
     }
@@ -66,7 +60,6 @@ public class StartupRunner implements CommandLineRunner {
         createAdminUser();
         createDefaultLabels();
         builtInJobSeeder.seedBuiltInJobs();
-        scheduleExistingAlerts();
         if (runQdrantUpsertOnStartup) {
             upsertExistingRecordsToQdrant();
         } else {
@@ -118,20 +111,6 @@ public class StartupRunner implements CommandLineRunner {
         }
         Label alertLabel = new Label(labelName, adminUser, LabelType.DEFAULT);
         labelRepository.save(alertLabel);
-    }
-
-    private void scheduleExistingAlerts() {
-        List<AlertSchedule> existingAlerts = alertScheduleRepository.findActiveSchedules();
-        if (existingAlerts!= null && !existingAlerts.isEmpty()) {
-            logger.info("Found {} existing alerts, making schedules", existingAlerts.size());
-            for (AlertSchedule alertSchedule : existingAlerts) {
-                try {
-                    scheduleAlertService.scheduleAlert(alertSchedule);
-                } catch (Exception e) {
-                    logger.error("Failed to schedule: \n{}", e.getMessage(), e);
-                }
-            }
-        }
     }
 
     private void upsertExistingRecordsToQdrant() {

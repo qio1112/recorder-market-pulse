@@ -287,6 +287,18 @@ class RecorderApplicationTests {
                 .statusCode(201);
 
         logger.info(response1.asString());
+        Response schedulesResponse = given()
+                .header("Authorization", "Bearer " + jwtToken)
+                .contentType(ContentType.JSON)
+                .get(baseUrl + "/api/records/alert-schedules");
+
+        schedulesResponse.then()
+                .statusCode(200);
+        List<Map<String, Object>> schedules = schedulesResponse.body().jsonPath().getList("$");
+        Assertions.assertTrue(
+                schedules.stream().anyMatch(schedule -> "create record test 4 with alert".equals(schedule.get("recordTitle"))),
+                "Created alert schedule should appear in alert schedule list"
+        );
         Thread.sleep(10000);
     }
 

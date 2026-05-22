@@ -41,6 +41,12 @@
               <span class="tool-description">Prices, Greeks, and stock context</span>
             </router-link>
           </li>
+          <li>
+            <router-link to="/tools/scheduled-records">
+              <span class="tool-title">Scheduled Records</span>
+              <span class="tool-description">Record alert schedules</span>
+            </router-link>
+          </li>
           <li v-if="isAdmin">
             <router-link to="/tools/llm-chat">
               <span class="tool-title">LLM Chat</span>

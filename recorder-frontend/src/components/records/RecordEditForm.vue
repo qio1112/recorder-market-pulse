@@ -60,12 +60,27 @@
           </select>
         </div>
         <div class="alert-control" v-if="form.alertType">
-          <label>Alert Time (ISO)</label>
-          <input v-model="form.alertTime" type="text" placeholder="2025-10-11T17:04:15-04:00" />
+          <label>{{ form.alertType === 'ONE_TIME' ? 'Alert Date' : 'Alert Time' }}</label>
+          <input
+            v-if="form.alertType === 'ONE_TIME'"
+            v-model="form.alertDate"
+            type="date"
+            :min="todayDate"
+          />
+          <input v-model="form.alertClockTime" type="time" />
         </div>
         <div class="alert-control alert-control-wide" v-if="form.alertType === 'RECURRING'">
-          <label>Recurring Weekdays (comma-separated, e.g. MONDAY,TUESDAY,SATURDAY)</label>
-          <input v-model="form.recurringAlertWeekDays" type="text" />
+          <label>Recurring Weekdays</label>
+          <div class="weekday-list">
+            <label v-for="day in weekdayOptions" :key="day.value" class="weekday-chip">
+              <input
+                type="checkbox"
+                :value="day.value"
+                v-model="form.recurringWeekdayList"
+              />
+              {{ day.label }}
+            </label>
+          </div>
         </div>
       </div>
       <label class="inline-check" v-if="mode === 'edit'">
@@ -163,7 +178,7 @@
         {{ mode === 'edit' ? 'Save Changes' : 'Create Record' }}
       </base-button>
     </div>
-    <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+    <p v-if="displayErrorMessage" class="error">{{ displayErrorMessage }}</p>
   </form>
 </template>
 
@@ -175,6 +190,16 @@ const SYSTEM_MESSAGE = {
   role: 'system',
   content: 'You are a concise assistant for the Recorder admin user.'
 }
+
+const WEEKDAY_OPTIONS = [
+  { value: 'MONDAY', label: 'Mon' },
+  { value: 'TUESDAY', label: 'Tue' },
+  { value: 'WEDNESDAY', label: 'Wed' },
+  { value: 'THURSDAY', label: 'Thu' },
+  { value: 'FRIDAY', label: 'Fri' },
+  { value: 'SATURDAY', label: 'Sat' },
+  { value: 'SUNDAY', label: 'Sun' }
+]
 
 export default {
   name: 'RecordEditForm',
@@ -194,15 +219,20 @@ export default {
     }
   },
   data() {
+    const initialAlert = this.initialRecord.alertSchedule || {};
+    const initialAlertParts = this.getAlertParts(initialAlert.timeAt, initialAlert.alertType);
     return {
       form: {
         title: this.initialRecord.title || '',
         labels: this.initialRecord.labels ? this.initialRecord.labels.map((l) => l.labelName) : [],
         content: this.initialRecord.content || '',
-        isPublic: this.initialRecord.isPublic ?? false,
-        alertType: this.initialRecord.alertSchedule?.alertType || null,
-        alertTime: this.initialRecord.alertSchedule?.timeAt || null,
-        recurringAlertWeekDays: this.initialRecord.alertSchedule?.weekdays || null,
+        isPublic: this.initialRecord.isPublic ?? this.initialRecord.public ?? false,
+        alertType: initialAlert.alertType || null,
+        alertDate: initialAlertParts.date,
+        alertClockTime: initialAlertParts.time,
+        alertTime: initialAlert.timeAt || null,
+        recurringAlertWeekDays: initialAlert.weekdays || null,
+        recurringWeekdayList: this.parseWeekdays(initialAlert.weekdays),
         images: [],
         files: [],
         removeFileIDs: [],
@@ -219,6 +249,8 @@ export default {
       isGeneratingLabels: false,
       labelMessage: '',
       labelMessageIsError: false,
+      localErrorMessage: '',
+      weekdayOptions: WEEKDAY_OPTIONS,
       metadataRows: this.initialRecord.metadata
         ? Object.entries(this.initialRecord.metadata).map(([key, value]) => ({ key, value }))
         : []
@@ -244,6 +276,12 @@ export default {
     },
     labelSourceText() {
       return `${this.form.title || ''}\n${this.form.content || ''}`.trim();
+    },
+    displayErrorMessage() {
+      return this.localErrorMessage || this.errorMessage;
+    },
+    todayDate() {
+      return this.formatDateInputValue(new Date());
     }
   },
   watch: {
@@ -262,9 +300,115 @@ export default {
       } else {
         this.form.labels = this.form.labels.filter((l) => l !== 'INVESTMENT_REC');
       }
+    },
+    'form.alertType'(val) {
+      this.localErrorMessage = '';
+      if (val) {
+        this.ensureAlertDefaults(val);
+        if (!this.form.labels.includes('ALERT')) {
+          this.form.labels.push('ALERT');
+        }
+        this.form.cancelAlert = false;
+      } else {
+        this.form.alertTime = null;
+        this.form.recurringAlertWeekDays = null;
+        this.form.recurringWeekdayList = [];
+      }
+    },
+    'form.recurringWeekdayList': {
+      deep: true,
+      handler(val) {
+        this.form.recurringAlertWeekDays = Array.isArray(val) && val.length ? val.join(',') : null;
+      }
     }
   },
   methods: {
+    getAlertParts(value, alertType) {
+      if (value) {
+        const date = new Date(value);
+        if (!Number.isNaN(date.getTime())) {
+          return {
+            date: this.formatDateInputValue(date),
+            time: this.formatTimeInputValue(date)
+          };
+        }
+      }
+      const defaults = this.defaultAlertDateTime(alertType);
+      return {
+        date: this.formatDateInputValue(defaults),
+        time: this.formatTimeInputValue(defaults)
+      };
+    },
+    parseWeekdays(value) {
+      if (!value) return [];
+      const valid = new Set(WEEKDAY_OPTIONS.map((day) => day.value));
+      return String(value)
+        .split(',')
+        .map((day) => day.trim().toUpperCase())
+        .filter((day) => valid.has(day));
+    },
+    defaultAlertDateTime(alertType) {
+      const date = new Date();
+      if (alertType === 'ONE_TIME') {
+        date.setDate(date.getDate() + 1);
+      }
+      date.setHours(9, 0, 0, 0);
+      return date;
+    },
+    ensureAlertDefaults(alertType) {
+      const defaults = this.defaultAlertDateTime(alertType);
+      if (!this.form.alertDate) {
+        this.form.alertDate = this.formatDateInputValue(defaults);
+      }
+      if (!this.form.alertClockTime) {
+        this.form.alertClockTime = this.formatTimeInputValue(defaults);
+      }
+    },
+    formatDateInputValue(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    },
+    formatTimeInputValue(date) {
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    },
+    buildAlertIsoTimestamp() {
+      if (!this.form.alertType) return null;
+      const datePart = this.form.alertType === 'ONE_TIME'
+        ? this.form.alertDate
+        : this.formatDateInputValue(new Date());
+      const timePart = this.form.alertClockTime;
+      if (!datePart || !timePart) return null;
+      const localDate = new Date(`${datePart}T${timePart}:00`);
+      if (Number.isNaN(localDate.getTime())) return null;
+      const offsetMinutes = -localDate.getTimezoneOffset();
+      const sign = offsetMinutes >= 0 ? '+' : '-';
+      const absOffset = Math.abs(offsetMinutes);
+      const offsetHours = String(Math.floor(absOffset / 60)).padStart(2, '0');
+      const offsetMins = String(absOffset % 60).padStart(2, '0');
+      return `${datePart}T${timePart}:00${sign}${offsetHours}:${offsetMins}`;
+    },
+    validateAlertFields() {
+      if (!this.form.alertType || this.form.cancelAlert) {
+        return true;
+      }
+      if (!this.form.alertClockTime) {
+        this.localErrorMessage = 'Alert time is required.';
+        return false;
+      }
+      if (this.form.alertType === 'ONE_TIME' && !this.form.alertDate) {
+        this.localErrorMessage = 'Alert date is required.';
+        return false;
+      }
+      if (this.form.alertType === 'RECURRING' && !this.form.recurringWeekdayList.length) {
+        this.localErrorMessage = 'Select at least one recurring weekday.';
+        return false;
+      }
+      return true;
+    },
     async checkLlmConnection() {
       this.isCheckingLlm = true;
       try {
@@ -389,13 +533,33 @@ export default {
       return parts.length > 1 ? parts.slice(1).join('__') : name;
     },
     submit() {
+      this.localErrorMessage = '';
+      if (!this.validateAlertFields()) {
+        return;
+      }
       const metadata = {};
       this.metadataRows.forEach(({ key, value }) => {
         if (key) {
           metadata[key] = value ?? '';
         }
       });
-      this.$emit('submit', { ...this.form, metadata });
+      const payload = {
+        ...this.form,
+        labels: [...this.form.labels],
+        alertTime: this.buildAlertIsoTimestamp(),
+        recurringAlertWeekDays: this.form.alertType === 'RECURRING'
+          ? this.form.recurringWeekdayList.join(',')
+          : null,
+        metadata
+      };
+      if (payload.alertType && !payload.labels.includes('ALERT')) {
+        payload.labels.push('ALERT');
+      }
+      if (!payload.alertType || payload.cancelAlert) {
+        payload.alertTime = null;
+        payload.recurringAlertWeekDays = null;
+      }
+      this.$emit('submit', payload);
     }
   }
 }
@@ -449,6 +613,31 @@ export default {
 
 .alert-control-wide {
   grid-column: 1 / -1;
+}
+
+.weekday-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.weekday-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1f2933;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.weekday-chip:has(input:checked) {
+  border-color: #2f80ed;
+  background: #eef6ff;
+  color: #0f4c81;
 }
 
 .image-preview-list {
