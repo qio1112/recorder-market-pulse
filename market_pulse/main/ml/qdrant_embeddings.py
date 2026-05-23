@@ -272,3 +272,34 @@ def record_exists(
         exact=True,
     )
     return bool(getattr(resp, "count", 0))
+
+
+def list_record_ids(
+    *,
+    qdrant: QdrantClient,
+    collection: str = COLLECTION,
+    page_size: int = 256,
+) -> list[str]:
+    """Return distinct record_id payload values currently present in Qdrant."""
+    existing = {c.name for c in qdrant.get_collections().collections}
+    if collection not in existing:
+        return []
+
+    record_ids: set[str] = set()
+    offset = None
+    while True:
+        points, offset = qdrant.scroll(
+            collection_name=collection,
+            limit=page_size,
+            offset=offset,
+            with_payload=True,
+            with_vectors=False,
+        )
+        for point in points:
+            payload = point.payload or {}
+            record_id = payload.get("record_id")
+            if record_id is not None:
+                record_ids.add(str(record_id))
+        if offset is None:
+            break
+    return sorted(record_ids)

@@ -12,6 +12,7 @@ public class LlmChatRequest {
     @JsonProperty("max_tokens")
     private Integer maxTokens;
     private Boolean includeRelatedRecords;
+    private String chatMode;
 
     public List<LlmChatMessage> getMessages() {
         return messages;
@@ -43,5 +44,13 @@ public class LlmChatRequest {
 
     public void setIncludeRelatedRecords(Boolean includeRelatedRecords) {
         this.includeRelatedRecords = includeRelatedRecords;
+    }
+
+    public String getChatMode() {
+        return chatMode;
+    }
+
+    public void setChatMode(String chatMode) {
+        this.chatMode = chatMode;
     }
 }

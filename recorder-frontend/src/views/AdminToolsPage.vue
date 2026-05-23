@@ -440,6 +440,7 @@ const JOB_TYPE_LABELS = {
   STOCK_DATA_FRESHNESS_CHECK: 'Stock data freshness check',
   OPTION_DATA_FRESHNESS_CHECK: 'Option data freshness check',
   QDRANT_CONSISTENCY_CHECK: 'Qdrant consistency check',
+  QDRANT_DATAFIX: 'Qdrant datafix',
   STOCK_OPTION_DATA_UPDATE: 'Update day time option data',
   STOCK_DAILY_HISTORY_UPDATE: 'Update stock daily history',
   STOCK_AFTER_CLOSE_REFRESH: 'After-close stock data refresh',

@@ -3,6 +3,15 @@
     <header class="page-header workspace-header">
       <h1>LLM Chat</h1>
       <div class="header-actions">
+        <label class="mode-toggle" title="Unchecked uses the current eager related-record context mode. Checked uses the new records-agent mode.">
+          <input
+            v-model="useRecordAgent"
+            type="checkbox"
+            :disabled="isSending"
+            @change="saveAgentModePreference"
+          >
+          <span>Use record agent</span>
+        </label>
         <button
           v-if="!noConnection && !isChecking"
           type="button"
@@ -46,7 +55,7 @@
 
     <template v-else>
       <p v-if="noConnection" class="connection-banner">
-        LLM connection failed. Your chat history is kept; send again after the model is reachable.
+        {{ connectionBannerText }}
       </p>
       <div class="conversation" ref="conversation">
         <div
@@ -91,6 +100,7 @@ const SYSTEM_MESSAGE = {
   content: 'You are a concise assistant for the Recorder admin user.'
 }
 const CHAT_HISTORY_STORAGE_KEY = 'recorder.llmChat.messages'
+const CHAT_AGENT_MODE_STORAGE_KEY = 'recorder.llmChat.recordAgentMode'
 
 export default {
   name: 'AdminLlmChatPage',
@@ -104,19 +114,33 @@ export default {
       isSavingRecord: false,
       recordMessage: '',
       recordMessageIsError: false,
-      noConnection: false
+      noConnection: false,
+      useRecordAgent: false
     }
   },
   computed: {
     visibleMessages() {
       return this.messages.filter((message) => message.role !== 'system');
+    },
+    connectionBannerText() {
+      return this.recordMessage || 'LLM connection failed. Your chat history is kept; send again after the model is reachable.';
     }
   },
   mounted() {
+    this.loadAgentModePreference();
     this.loadChatHistory();
     this.checkConnection();
   },
   methods: {
+    getChatMode() {
+      return this.useRecordAgent ? 'RECORD_AGENT' : 'RELATED_CONTEXT';
+    },
+    loadAgentModePreference() {
+      this.useRecordAgent = localStorage.getItem(CHAT_AGENT_MODE_STORAGE_KEY) === 'true';
+    },
+    saveAgentModePreference() {
+      localStorage.setItem(CHAT_AGENT_MODE_STORAGE_KEY, this.useRecordAgent ? 'true' : 'false');
+    },
     getStoredTokenInfo() {
       return parseJwtInfo(localStorage.getItem('token'));
     },
@@ -192,6 +216,9 @@ export default {
       if (!['user', 'assistant'].includes(message?.role) || typeof message.content !== 'string') {
         return null;
       }
+      if (message.role === 'assistant' && /<\|?\/?tool_calls?\|?>/i.test(message.content)) {
+        return null;
+      }
       return {
         role: message.role,
         content: message.content,
@@ -225,7 +252,10 @@ export default {
       this.draft = '';
       this.isSending = true;
       try {
-        const response = await sendLlmChat(this.messages, { includeRelatedRecords: true });
+        const response = await sendLlmChat(this.messages, {
+          includeRelatedRecords: !this.useRecordAgent,
+          chatMode: this.getChatMode()
+        });
         if (!response?.reply) {
           throw new Error('No LLM reply');
         }
@@ -243,7 +273,7 @@ export default {
         this.saveChatHistory();
         this.noConnection = true;
         this.recordMessage = error?.code === 'ECONNABORTED'
-          ? 'LLM response timed out. Your message was kept; try again when the model finishes loading.'
+          ? 'LLM response timed out. Your message was kept; agent mode can take longer when it searches records.'
           : 'LLM connection failed. Your message was kept.';
         this.recordMessageIsError = true;
       } finally {
@@ -307,6 +337,23 @@ export default {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.25rem;
+  color: #334e68;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mode-toggle input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #2f80ed;
 }
 
 .icon-button {

@@ -11,10 +11,12 @@ import com.yipeng.recorder.response.SaveLlmChatRecordResponse;
 import com.yipeng.recorder.service.LlmRecordService;
 import com.yipeng.recorder.service.MarketPulseApiService;
 import com.yipeng.recorder.service.UserService;
+import com.yipeng.recorder.service.agent.LlmAgentService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Locale;
 
 @RestController
 @RequestMapping("/api/llm")
@@ -23,13 +25,16 @@ public class LlmController {
     private final UserService userService;
     private final MarketPulseApiService marketPulseApiService;
     private final LlmRecordService llmRecordService;
+    private final LlmAgentService llmAgentService;
 
     public LlmController(UserService userService,
                          MarketPulseApiService marketPulseApiService,
-                         LlmRecordService llmRecordService) {
+                         LlmRecordService llmRecordService,
+                         LlmAgentService llmAgentService) {
         this.userService = userService;
         this.marketPulseApiService = marketPulseApiService;
         this.llmRecordService = llmRecordService;
+        this.llmAgentService = llmAgentService;
     }
 
     @PostMapping("/chat")
@@ -38,10 +43,24 @@ public class LlmController {
         if (user == null || !user.isAdmin()) {
             throw new ForbiddenException();
         }
-        LlmChatRequest enrichedRequest = Boolean.TRUE.equals(request.getIncludeRelatedRecords())
+        if ("RECORD_AGENT".equalsIgnoreCase(normalizeChatMode(request))) {
+            return ResponseEntity.ok(llmAgentService.chatWithTools(request, user));
+        }
+        LlmChatRequest enrichedRequest = shouldUseRelatedContext(request)
                 ? llmRecordService.enrichChatWithRelatedChunks(request, user)
                 : request;
         return ResponseEntity.ok(marketPulseApiService.chatWithLlm(enrichedRequest));
+    }
+
+    private String normalizeChatMode(LlmChatRequest request) {
+        return request == null || request.getChatMode() == null
+                ? ""
+                : request.getChatMode().trim().toUpperCase(Locale.ROOT);
+    }
+
+    private boolean shouldUseRelatedContext(LlmChatRequest request) {
+        String chatMode = normalizeChatMode(request);
+        return "RELATED_CONTEXT".equals(chatMode) || (request != null && Boolean.TRUE.equals(request.getIncludeRelatedRecords()));
     }
 
     @PostMapping("/record-labels")

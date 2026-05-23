@@ -119,6 +119,10 @@ Endpoints:
 - `POST /exists`
   - Input: `ExistsRequest { record_id, collection }`.
   - Output: `{ exists: boolean }`.
+- `POST /record-ids`
+  - Input: `RecordIdsRequest { collection, page_size? }`.
+  - Output: `{ record_ids: [...] }`.
+  - Flow: scrolls Qdrant payloads and returns distinct backend record ids currently stored in the collection.
 
 ## Data Source Layer
 
@@ -228,6 +232,7 @@ Functions:
 - `delete_vectors_by_record_id(...)`: deletes all chunks for record id.
 - `upsert_vectors_by_record_id(...)`: chunks, embeds, and upserts record text.
 - `record_exists(...) -> bool`: checks whether any vector exists for record id.
+- `list_record_ids(...) -> list[str]`: lists distinct payload `record_id` values for consistency/datafix jobs.
 
 Input payload fields:
 
@@ -241,7 +246,7 @@ Input payload fields:
 Output shape:
 
 - Upsert returns point ids.
-- Query returns record ids, owner/public metadata, best similarity score, and matched chunk text. Backend LLM chat uses these chunks as retrieval context and performs a DB visibility/date check before sending them to an LLM.
+- Query returns record ids, owner/public metadata, best similarity score, and matched chunk text. Backend related-record and LLM flows perform DB visibility/date checks before using chunks. Record-id listing supports backend checks that all live records are indexed and stale deleted-record vectors are removed.
 
 ### `main/api/llm_api.py`
 

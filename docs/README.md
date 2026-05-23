@@ -10,7 +10,7 @@ User-facing introductions and basic run/build notes belong in the module `README
 - [Recorder Backend](./recorder-backend.md): Spring Boot API, persistence model, security, records, files, alerts, stock data, option data, LLM record helpers, scheduled market-news records, and Qdrant embedding integration.
 - [Recorder Frontend](./recorder-frontend.md): Vue application structure, routes, stores, API clients, record workflows, LLM chat/admin tools, portfolio charts, calendar, and option tools.
 - [Market Pulse](./market-pulse.md): FastAPI service, stock/option data collection, parquet readers/converters, configurable LLM client, yfinance news summaries, Qdrant vector search, and task entry points.
-- [Data Flows](./data-flows.md): end-to-end flows for login, record CRUD, file upload/download, semantic search, related records, LLM labels/chat records, market-news records, portfolio charting, option history, and stock history refresh.
+- [Data Flows](./data-flows.md): end-to-end flows for login, record CRUD, semantic search, related records, LLM chat/records, jobs, market data, and deployment.
 - [Scheduling And Admin Operations](./scheduling-and-admin.md): current DB-backed admin job system, user record alerts, dashboard behavior, Qdrant background jobs, and timezone rules.
 
 ## Runtime Modules
@@ -30,3 +30,5 @@ For most future sessions, read these first:
 1. `system-architecture.md` for service boundaries and module ownership.
 2. `scheduling-and-admin.md` before touching jobs, alerts, admin tools, Qdrant background work, or timezone-sensitive schedule logic.
 3. The module doc for the code you are changing.
+
+Keep flow docs concise. Put detailed class behavior in the module docs and link mentally across files instead of repeating long rules in every flow.

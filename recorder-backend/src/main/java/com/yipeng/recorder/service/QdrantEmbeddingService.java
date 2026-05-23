@@ -5,8 +5,10 @@ import com.yipeng.recorder.model.Record;
 import com.yipeng.recorder.model.User;
 import com.yipeng.recorder.request.QdrantDeleteRequest;
 import com.yipeng.recorder.request.QdrantExistsRequest;
+import com.yipeng.recorder.request.QdrantRecordIdsRequest;
 import com.yipeng.recorder.request.QdrantQueryRequest;
 import com.yipeng.recorder.request.QdrantUpsertRequest;
+import com.yipeng.recorder.response.QdrantRecordIdsResponse;
 import com.yipeng.recorder.response.QdrantQueryResponse;
 import com.yipeng.recorder.response.QdrantQueryResult;
 import com.yipeng.recorder.response.QdrantUpsertResponse;
@@ -25,6 +27,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -134,6 +137,14 @@ public class QdrantEmbeddingService {
         Map<String, Object> resp = post("/exists", body, Map.class);
         Object exists = resp != null ? resp.get("exists") : null;
         return exists instanceof Boolean && (Boolean) exists;
+    }
+
+    public Set<String> listRecordIds() {
+        QdrantRecordIdsRequest body = new QdrantRecordIdsRequest(qdrantCollection, 500);
+        QdrantRecordIdsResponse resp = post("/record-ids", body, QdrantRecordIdsResponse.class);
+        return resp != null && resp.getRecordIds() != null
+                ? Set.copyOf(resp.getRecordIds())
+                : Set.of();
     }
 
     public boolean deleteRecordIfExistsSync(String recordId) {

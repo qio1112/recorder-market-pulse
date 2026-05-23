@@ -19,6 +19,7 @@ public final class JobType {
     public static final String QDRANT_RECORD_UPSERT = "QDRANT_RECORD_UPSERT";
     public static final String QDRANT_RECORD_DELETE = "QDRANT_RECORD_DELETE";
     public static final String QDRANT_CONSISTENCY_CHECK = "QDRANT_CONSISTENCY_CHECK";
+    public static final String QDRANT_DATAFIX = "QDRANT_DATAFIX";
 
     private static final Set<String> STATUS_CHECK_TYPES = Set.of(
             MARKET_PULSE_HEALTH_CHECK,

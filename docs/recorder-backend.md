@@ -20,6 +20,8 @@
 - `com.yipeng.recorder.config`: Spring beans, security, CORS, startup initialization.
 - `controller`: REST endpoint layer. Validates request context, loads authenticated user, delegates business logic.
 - `service`: business logic, file handling coordination, auth helpers, scheduled work, Market Pulse/Qdrant integration.
+- `service.agent`: reusable LLM agent loop and tool interfaces.
+- `prompt`: built-in LLM prompt text and output token limits.
 - `model`: JPA entities and converters.
 - `repository`: Spring Data repositories and custom query entry points.
 - `request`: API request DTOs.
@@ -101,9 +103,9 @@ Base path: `/api/records`.
 Base path: `/api/llm`.
 
 - `POST /chat`
-  - Input: `LlmChatRequest { messages, temperature?, max_tokens?, includeRelatedRecords? }`.
+  - Input: `LlmChatRequest { messages, temperature?, max_tokens?, chatMode?, includeRelatedRecords? }`.
   - Output: `LlmChatResponse { reply }`.
-  - Flow: admin-only proxy to Market Pulse `/llm/chat`. When `includeRelatedRecords` is true, the backend enriches the chat with relevant Qdrant chunks before proxying.
+  - Flow: admin-only. Default/legacy mode eagerly enriches the chat with related Qdrant chunks before proxying to Market Pulse `/llm/chat`. `chatMode=RECORD_AGENT` uses the generic agent loop with registered tools; v1 enables only `search_records`.
 - `POST /record-labels`
   - Input: `GenerateRecordLabelsRequest { title, content, maxLabels }`.
   - Output: `GenerateRecordLabelsResponse { labels }`.
@@ -111,7 +113,7 @@ Base path: `/api/llm`.
 - `POST /chat-record`
   - Input: `SaveLlmChatRecordRequest { messages, public }`.
   - Output: `SaveLlmChatRecordResponse { status, message }` with HTTP `202 Accepted`.
-  - Flow: admin-only, starts `LlmRecordService.createChatRecordAsync(...)` and returns immediately. The async job summarizes the current chat, asks the LLM for a one-line title, generates up to 5 labels, creates a record, and queues a durable Qdrant upsert job.
+  - Flow: admin-only, starts `LlmRecordService.createChatRecordAsync(...)` and returns immediately. The async job summarizes the current chat, asks the LLM for a one-line title, generates up to 5 labels, saves summary-only record content, and queues a durable Qdrant upsert job.
 
 ### `AdminToolsController`
 
@@ -245,6 +247,7 @@ Gateway to Market Pulse:
 - `getTrackedStockNewsSummary()`: calls Market Pulse `/news/stock-summary` with a long read timeout.
 - `chatWithLlm(request)`: calls Market Pulse `/llm/chat`.
   - Uses a 30-second read timeout because local model responses can exceed the default 10-second `RestTemplate` timeout.
+- `chatWithLlm(request, readTimeout)`: timeout override used by the agent loop.
 - `formatSymbolList(symbols)`: trims, uppercases, removes blanks and duplicates.
 
 ### `LlmRecordService`
@@ -258,23 +261,26 @@ Record-oriented LLM helpers:
   - Normalizes labels to uppercase, replaces spaces/punctuation with `_`, removes generic labels/stop words, enforces max length 30, and caps by requested limit.
   - If model labels are empty or unusable, derives fallback labels from title/content.
 - `enrichChatWithRelatedChunks(request, user) -> LlmChatRequest`
-  - Used by admin LLM chat when `includeRelatedRecords` is true.
-  - Extracts the latest user message and queries Qdrant through `QdrantEmbeddingService.querySimilarRecords`.
-  - Requests 20 candidate chunks from Qdrant, then backend filters/ranks to 5 chunks.
-  - Rechecks each candidate’s DB record visibility before using its chunk text.
-  - Default recency policy prefers records modified in the last 365 days.
-  - Older records are excluded unless the query looks historical (`old`, `history`, year patterns, etc.) or the Qdrant score is high (`>= 0.72`).
-  - Injected context includes `Source: {title} (Record {id})`, created/modified dates, score, and `possibly outdated` for old records.
-  - Prompt tells the LLM to use excerpts as background information, synthesize rather than repeat chunks, cite title+id instead of bare record IDs, and prefer newer records when sources conflict.
+  - Used by legacy/eager admin LLM chat mode when `chatMode=RELATED_CONTEXT` or legacy `includeRelatedRecords` is true.
+  - Delegates Qdrant retrieval, DB visibility recheck, recency filtering, and prompt rendering to `RelatedRecordContextService`.
 - `createChatRecord(messages, isPublic, user) -> Record`
   - Builds a transcript from non-system messages.
   - Summarizes the chat.
   - Generates a one-line short title, stripping reasoning/markdown/prose. If unusable, derives a title from the summary/transcript.
   - Generates up to 5 labels, preferring single words while allowing compact phrases. If unusable, derives fallback labels.
-  - Creates the record and queues a durable Qdrant upsert job.
+  - Saves only the generated summary as record content and queues a durable Qdrant upsert job.
 - `createChatRecordAsync(messages, isPublic, user) -> CompletableFuture<Void>`
   - Fire-and-forget wrapper used by `/api/llm/chat-record`.
   - Copies messages before leaving the request thread and logs success/failure.
+
+### `LlmAgentService` And Tools
+
+- `LlmAgentService`: generic plain-text tool loop over Market Pulse `/llm/chat`; no native OpenAI tool-call API in v1.
+- `LlmAgentTool`: common interface for tool name, description, argument instructions, and execution.
+- `LlmAgentToolRegistry`: registered-tool lookup and unknown-tool rejection.
+- `LlmAgentToolCall` / `LlmAgentToolResult`: normalized tool request/result objects.
+- `SearchRecordsAgentTool`: first concrete tool. It reuses `RelatedRecordContextService` and returns bounded record chunks with source title/id, created/modified dates, score, and `possibly outdated` markers.
+- `BuiltInPrompts`: shared prompt text. `BuiltInLlmTokenLimits`: shared Java-side LLM output token budgets.
 
 ### `QdrantEmbeddingService`
 
@@ -287,6 +293,7 @@ Gateway to Market Pulse `/qdrant` endpoints:
 - `querySimilarRecords(queryText, user, threshold, limit)`: returns `QdrantQueryResult` values from vector search.
   - `QdrantQueryResult.chunks` contains matched chunk text from Qdrant payloads. Related-record UI and LLM chat context should use chunks rather than loading full record content when possible.
 - `recordExists(recordId)`: checks vector presence.
+- `listRecordIds()`: returns distinct record ids currently present in Qdrant, used by consistency check/datafix jobs.
 
 ### Authentication And User Services
 
@@ -342,6 +349,7 @@ Implemented built-in job types:
 - `QDRANT_RECORD_UPSERT`
 - `QDRANT_RECORD_DELETE`
 - `QDRANT_CONSISTENCY_CHECK`
+- `QDRANT_DATAFIX`
 
 Admin API behavior:
 
@@ -351,7 +359,7 @@ Admin API behavior:
 - Retry is framework-level and records retry status in `job_execution`. Current retry attempts run immediately; delayed retry scheduling is tracked in the follow-up plan.
 - Failure emails are sent only after all retry attempts are exhausted.
 - Stale `QUEUED` or `RUNNING` executions are marked `TIMEOUT` when they remain active longer than the job config's `max_runtime_seconds` value. This runs on every scheduler poll and before a new execution is queued for the same job key, so interrupted async tasks or container rebuilds do not block future runs forever.
-- Stock data freshness, option data freshness, and Qdrant consistency checks are built-in daily cron jobs scheduled for `22:00` America/New_York by default. Option data freshness uses the latest successful `STOCK_AFTER_CLOSE_REFRESH` execution as its freshness reference; if today is a trade day and that latest success is before today, the check fails. The same check still records current option symbols with expiry counts in `details_json` for dashboard review. Job execution cleanup runs daily at `23:00`.
+- Stock data freshness, option data freshness, and Qdrant consistency checks are built-in daily cron jobs scheduled for `22:00` America/New_York by default. Qdrant consistency compares backend record ids with Qdrant ids and reports both missing and stale vectors. `QDRANT_DATAFIX` is a manual job under Other Jobs that upserts missing vectors and deletes stale vectors. Job execution cleanup runs daily at `23:00`.
 - Job execution rows use a 30-day retention window. The cleanup job deletes expired rows.
 - Record create/update/delete and chat-to-record flows now queue durable Qdrant upsert/delete executions instead of relying only on fire-and-forget `@Async` calls.
 

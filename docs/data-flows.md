@@ -133,32 +133,25 @@ Outputs:
 
 - Related record previews with similarity score/chunk metadata available in the DTO.
 
-## LLM Chat Related Chunk Context Flow
+## Admin LLM Chat Flow
 
 1. Admin sends a message from `/tools/llm-chat`.
-2. Frontend `LlmService.sendLlmChat(messages, { includeRelatedRecords: true })` posts only `{ role, content }` message fields plus `includeRelatedRecords`.
-3. Backend `LlmController.chat` validates admin access.
-4. `LlmRecordService.enrichChatWithRelatedChunks` extracts the latest user message.
-5. Backend queries Qdrant through `QdrantEmbeddingService.querySimilarRecords` with threshold `0.45` and candidate limit `20`.
-6. Market Pulse `/qdrant/query` returns record-level hits with matched chunk text in `chunks`.
-7. Backend loads each candidate record from MySQL and rechecks visibility.
-8. Backend applies recency logic:
-   - Prefer records modified within the last 365 days.
-   - Exclude older records unless the user asks for historical/old records or Qdrant score is at least `0.72`.
-   - Sort recent records ahead of old records, then by similarity score and modified time.
-9. Backend keeps up to 5 chunks, max 1200 chars per chunk and about 7000 chars total related context.
-10. Backend injects a system context message before the user-visible chat content.
-11. The injected context names sources as `{title} (Record {id})`, includes created/modified dates, marks old records as `possibly outdated`, and tells the LLM to use excerpts as background rather than repeating them.
-12. Backend forwards the enriched request to Market Pulse `/llm/chat`.
+2. Frontend posts API-safe messages plus `chatMode` to `POST /api/llm/chat`.
+3. Backend validates admin access and routes by mode:
+   - `RELATED_CONTEXT`: old eager Qdrant enrichment through `LlmRecordService.enrichChatWithRelatedChunks`, then one Market Pulse `/llm/chat` call.
+   - `RECORD_AGENT`: generic `LlmAgentService` loop with registered tools. V1 has only `search_records`.
+4. Both paths use `RelatedRecordContextService` for Qdrant record retrieval rules: DB visibility recheck, recent-record preference, historical-query allowance, high-score old-record allowance, and bounded chunk output.
+5. Agent mode builds a system prompt from registered tool metadata. The model can answer directly or return JSON such as `{"tool":"search_records","arguments":{"query":"NVDA","limit":5}}`.
+6. Backend executes at most 3 tool iterations, returns controlled tool errors for unknown/failing tools, strips invalid tool-call wrappers, and treats normal prose as a final answer.
 
 Inputs:
 
-- Latest user chat message and authenticated user.
-- Qdrant chunk text plus DB record visibility/date metadata.
+- Current chat messages, authenticated admin user, and selected `chatMode`.
+- Optional Qdrant chunk context from visible records.
 
 Outputs:
 
-- LLM reply that may cite source titles with record IDs, while using only relevant chunks rather than full record bodies.
+- `{ reply }` from Market Pulse/agent orchestration. Chat history stays in the browser if a transient LLM failure occurs.
 
 ## LLM Label Generation Flow
 
@@ -189,7 +182,7 @@ Outputs:
 6. Backend returns `202 Accepted` with `{ status: "started", message }` and starts `LlmRecordService.createChatRecordAsync`.
 7. The async job summarizes the chat, asks the LLM for a one-line short title, and generates up to 5 labels.
 8. Backend strips reasoning/markdown/prose from title/label outputs and derives fallback title/labels when model output is unusable.
-9. Backend creates a private record with summary and transcript content.
+9. Backend creates a record whose content is the generated summary only. The transcript is input for summary/title/labels but is not saved in the record body.
 10. `QdrantJobService.queueUpsert` queues durable Qdrant indexing for the new record.
 
 Inputs:
@@ -199,7 +192,7 @@ Inputs:
 Outputs:
 
 - Immediate job-start response to the frontend.
-- Eventually, a new record with LLM/fallback title, summary, transcript, labels, and Qdrant vectors.
+- Eventually, a new record with LLM/fallback title, summary-only content, labels, and Qdrant vectors.
 
 ## File Download Flow
 
@@ -298,7 +291,20 @@ Notes:
 - Only admin users can access job config, trigger, and execution APIs.
 - Manual triggers use saved job configuration only; trigger-time parameter overrides are not implemented yet.
 - The DB scheduler poller is enabled by default and replaces old hardcoded `@Scheduled` cron methods.
-- Qdrant record upsert/delete jobs are internal async consistency jobs and are hidden from the dashboard table. Qdrant count consistency is visible.
+- Qdrant record upsert/delete jobs are internal async consistency jobs and are hidden from the dashboard table. The visible Qdrant jobs are consistency check and manual datafix.
+
+## Qdrant Consistency And Datafix Flow
+
+1. Consistency check loads backend record ids and Market Pulse `/qdrant/record-ids`.
+2. Missing ids are backend records not present in Qdrant. Stale ids are Qdrant vectors whose records no longer exist.
+3. The manual `QDRANT_DATAFIX` job upserts missing backend records through `QdrantEmbeddingService.upsertRecordSync`.
+4. The same datafix job deletes stale Qdrant vectors through `deleteRecordIfExistsSync`.
+5. Per-record failures are recorded in job details while the job continues with other ids.
+
+Output:
+
+- All existing backend records should have Qdrant vectors.
+- Deleted/nonexisting backend records should not remain in Qdrant.
 
 ## Scheduled Stock Data Jobs Flow
 

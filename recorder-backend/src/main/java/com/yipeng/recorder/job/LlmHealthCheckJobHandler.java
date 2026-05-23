@@ -1,5 +1,6 @@
 package com.yipeng.recorder.job;
 
+import com.yipeng.recorder.prompt.BuiltInLlmTokenLimits;
 import com.yipeng.recorder.request.LlmChatMessage;
 import com.yipeng.recorder.request.LlmChatRequest;
 import com.yipeng.recorder.response.LlmChatResponse;
@@ -30,7 +31,7 @@ public class LlmHealthCheckJobHandler implements JobHandler {
         message.setRole("user");
         message.setContent("Reply with OK.");
         request.setMessages(List.of(message));
-        request.setMaxTokens(20);
+        request.setMaxTokens(BuiltInLlmTokenLimits.LLM_HEALTH_CHECK_MAX_TOKENS);
         long started = System.currentTimeMillis();
         LlmChatResponse response = marketPulseApiService.chatWithLlm(request);
         long latencyMs = System.currentTimeMillis() - started;

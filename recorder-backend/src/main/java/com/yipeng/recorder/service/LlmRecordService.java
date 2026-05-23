@@ -4,22 +4,19 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yipeng.recorder.model.Record;
 import com.yipeng.recorder.model.User;
+import com.yipeng.recorder.prompt.BuiltInLlmTokenLimits;
+import com.yipeng.recorder.prompt.BuiltInPrompts;
 import com.yipeng.recorder.request.LlmChatMessage;
 import com.yipeng.recorder.request.LlmChatRequest;
 import com.yipeng.recorder.response.LlmChatResponse;
-import com.yipeng.recorder.response.QdrantQueryResult;
-import com.yipeng.recorder.utils.DateTimeUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -35,13 +32,6 @@ public class LlmRecordService {
 
     private static final int DEFAULT_MAX_LABELS = 8;
     private static final int CHAT_RECORD_MAX_LABELS = 5;
-    private static final int RELATED_CHAT_CHUNK_LIMIT = 5;
-    private static final int RELATED_CHAT_CANDIDATE_LIMIT = 20;
-    private static final int RELATED_CHAT_CHUNK_MAX_CHARS = 1200;
-    private static final int RELATED_CHAT_CONTEXT_MAX_CHARS = 7000;
-    private static final double RELATED_CHAT_THRESHOLD = 0.45d;
-    private static final double RELATED_CHAT_OLD_RECORD_HIGH_SCORE = 0.72d;
-    private static final int RELATED_CHAT_RECENT_DAYS = 365;
     private static final Pattern THINK_BLOCK_PATTERN = Pattern.compile("(?is)<think>.*?</think>");
     private static final Pattern JSON_STRING_PATTERN = Pattern.compile("\"([^\"]{1,80})\"");
     private static final Pattern LABEL_TOKEN_PATTERN = Pattern.compile("\\b[A-Za-z][A-Za-z0-9_-]{1,29}\\b");
@@ -56,21 +46,18 @@ public class LlmRecordService {
 
     private final MarketPulseApiService marketPulseApiService;
     private final RecordService recordService;
-    private final QdrantEmbeddingService qdrantEmbeddingService;
     private final QdrantJobService qdrantJobService;
-    private final DateTimeUtils dateTimeUtils;
+    private final RelatedRecordContextService relatedRecordContextService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public LlmRecordService(MarketPulseApiService marketPulseApiService,
                             RecordService recordService,
-                            QdrantEmbeddingService qdrantEmbeddingService,
                             QdrantJobService qdrantJobService,
-                            DateTimeUtils dateTimeUtils) {
+                            RelatedRecordContextService relatedRecordContextService) {
         this.marketPulseApiService = marketPulseApiService;
         this.recordService = recordService;
-        this.qdrantEmbeddingService = qdrantEmbeddingService;
         this.qdrantJobService = qdrantJobService;
-        this.dateTimeUtils = dateTimeUtils;
+        this.relatedRecordContextService = relatedRecordContextService;
     }
 
     public List<String> generateLabels(String title, String content, Integer maxLabels) {
@@ -88,16 +75,9 @@ public class LlmRecordService {
                 """.formatted(nullToBlank(title), truncate(nullToBlank(content), 6000));
         LlmChatRequest request = new LlmChatRequest();
         request.setTemperature(0.1);
-        request.setMaxTokens(700);
+        request.setMaxTokens(BuiltInLlmTokenLimits.RECORD_LABEL_GENERATION_MAX_TOKENS);
         request.setMessages(List.of(
-                new LlmChatMessage("system", """
-                        Create short record labels from the provided title and content.
-                        Do not think step by step. Do not include reasoning, explanation, markdown, or prose.
-                        Return only a JSON array of strings.
-                        Labels must be key information words or compact phrases, uppercase, no spaces, no punctuation except underscore, max 30 characters.
-                        Prefer single-word labels when possible. Use two or more word combinations only when a single word loses important meaning.
-                        Do not include generic words like RECORD, NOTE, CONTENT, SUMMARY, USER, CHAT, DISCUSSION.
-                        """),
+                new LlmChatMessage("system", BuiltInPrompts.RECORD_LABEL_GENERATION_SYSTEM_PROMPT),
                 new LlmChatMessage("user", "Return up to %d labels for this record.\n\n%s".formatted(limit, text))
         ));
         LlmChatResponse response = marketPulseApiService.chatWithLlm(request);
@@ -113,13 +93,7 @@ public class LlmRecordService {
         String summary = summarizeChat(transcript);
         String title = generateChatTitle(summary, transcript);
         List<String> labels = generateLabels(title, summary + "\n\n" + transcript, CHAT_RECORD_MAX_LABELS, true);
-        String content = """
-                Summary
-                %s
-
-                Transcript
-                %s
-                """.formatted(summary, transcript).trim();
+        String content = summary.trim();
         Record record = new Record(title, user, content, isPublic);
         Record savedRecord = recordService.createRecord(
                 record,
@@ -140,7 +114,8 @@ public class LlmRecordService {
         if (latestUserMessage.isBlank()) {
             return request;
         }
-        List<RelatedChunkContext> chunks = getRelatedChunkContexts(latestUserMessage, user, isHistoricalRecordQuery(latestUserMessage));
+        List<RelatedRecordContextService.RelatedChunkContext> chunks =
+                relatedRecordContextService.getRelatedChunkContexts(latestUserMessage, user);
         if (chunks.isEmpty()) {
             return request;
         }
@@ -149,7 +124,10 @@ public class LlmRecordService {
         enriched.setTemperature(request.getTemperature());
         enriched.setMaxTokens(request.getMaxTokens());
         enriched.setIncludeRelatedRecords(false);
-        enriched.setMessages(insertRelatedContextMessage(request.getMessages(), buildRelatedChunksPrompt(chunks)));
+        enriched.setMessages(insertRelatedContextMessage(
+                request.getMessages(),
+                relatedRecordContextService.buildRelatedChunksPrompt(chunks)
+        ));
         return enriched;
     }
 
@@ -166,80 +144,6 @@ public class LlmRecordService {
             }
         }
         return "";
-    }
-
-    private boolean isHistoricalRecordQuery(String query) {
-        String normalized = nullToBlank(query).toLowerCase(Locale.ROOT);
-        return normalized.matches(".*\\b(older|old|historical|history|archive|archived|past|previous|before|from \\d{4}|in \\d{4}|\\d{4})\\b.*");
-    }
-
-    private List<RelatedChunkContext> getRelatedChunkContexts(String query, User user, boolean includeOlderRecords) {
-        List<QdrantQueryResult> results;
-        try {
-            results = qdrantEmbeddingService.querySimilarRecords(query, user, RELATED_CHAT_THRESHOLD, RELATED_CHAT_CANDIDATE_LIMIT);
-        } catch (Exception e) {
-            logger.warn("Failed to retrieve related record chunks for LLM chat", e);
-            return List.of();
-        }
-
-        ZonedDateTime recentCutoff = ZonedDateTime.now().minusDays(RELATED_CHAT_RECENT_DAYS);
-        List<RelatedChunkContext> chunks = new ArrayList<>();
-        for (QdrantQueryResult result : results) {
-            Record record = loadVisibleRecord(result, user);
-            if (record == null || result.getChunks() == null) {
-                continue;
-            }
-            boolean oldRecord = isOldRecord(record, recentCutoff);
-            if (!includeOlderRecords && oldRecord && !isHighScore(result.getBestScore())) {
-                continue;
-            }
-            for (String chunk : result.getChunks()) {
-                if (chunk == null || chunk.isBlank()) {
-                    continue;
-                }
-                chunks.add(new RelatedChunkContext(
-                        record.getId(),
-                        record.getTitle(),
-                        record.getCreationTime(),
-                        record.getLastModifiedTime(),
-                        result.getBestScore(),
-                        oldRecord,
-                        chunk
-                ));
-            }
-        }
-        return chunks.stream()
-                .sorted(Comparator
-                        .comparing(RelatedChunkContext::oldRecord)
-                        .thenComparing((RelatedChunkContext chunk) -> chunk.score() == null ? 0.0d : chunk.score(), Comparator.reverseOrder())
-                        .thenComparing(RelatedChunkContext::lastModifiedAtForSort, Comparator.reverseOrder()))
-                .limit(RELATED_CHAT_CHUNK_LIMIT)
-                .toList();
-    }
-
-    private boolean isOldRecord(Record record, ZonedDateTime recentCutoff) {
-        ZonedDateTime modified = record.getLastModifiedTime() != null ? record.getLastModifiedTime() : record.getCreationTime();
-        return modified != null && modified.isBefore(recentCutoff);
-    }
-
-    private boolean isHighScore(Double score) {
-        return score != null && score >= RELATED_CHAT_OLD_RECORD_HIGH_SCORE;
-    }
-
-    private Record loadVisibleRecord(QdrantQueryResult result, User user) {
-        try {
-            Long id = Long.parseLong(result.getRecordId());
-            Record record = recordService.getRecordById(id);
-            return record != null && userServiceCanSeeRecord(user, record) ? record : null;
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    private boolean userServiceCanSeeRecord(User user, Record record) {
-        return user != null && record != null && (user.isAdmin()
-                || record.isPublic()
-                || (record.getCreatedBy() != null && record.getCreatedBy().getId().equals(user.getId())));
     }
 
     private List<LlmChatMessage> insertRelatedContextMessage(List<LlmChatMessage> messages, String contextPrompt) {
@@ -260,58 +164,6 @@ public class LlmRecordService {
             enrichedMessages.add(new LlmChatMessage("system", contextPrompt));
         }
         return enrichedMessages;
-    }
-
-    private String buildRelatedChunksPrompt(List<RelatedChunkContext> chunks) {
-        StringBuilder sb = new StringBuilder("""
-                The following are relevant excerpts from existing Recorder records. Use them as background information for the user's question when helpful.
-                Do not simply repeat or dump these excerpts. Synthesize an answer for the user.
-                If the excerpts are not relevant, ignore them.
-                Prefer newer records when multiple excerpts conflict. If a cited source is old, treat it as possibly outdated unless the user asked for historical information.
-                When citing sources, do not cite bare record IDs. Cite the exact Source label, including both title and id, for example: "Project Notes (Record 48)".
-
-                Relevant excerpts:
-                """);
-        for (int i = 0; i < chunks.size(); i++) {
-            RelatedChunkContext chunk = chunks.get(i);
-            String sourceLabel = buildRelatedChunkSourceLabel(chunk);
-            String section = """
-
-                    [%d] Source: %s%s
-                    Created: %s
-                    Modified: %s%s
-                    Excerpt:
-                    %s
-                    """.formatted(
-                    i + 1,
-                    sourceLabel,
-                    chunk.score() == null ? "" : " | score %.3f".formatted(chunk.score()),
-                    formatContextDate(chunk.createdAt()),
-                    formatContextDate(chunk.modifiedAt()),
-                    chunk.oldRecord() ? " | possibly outdated" : "",
-                    truncate(chunk.text(), RELATED_CHAT_CHUNK_MAX_CHARS)
-            );
-            if (sb.length() + section.length() > RELATED_CHAT_CONTEXT_MAX_CHARS) {
-                break;
-            }
-            sb.append(section);
-        }
-        return sb.toString().trim();
-    }
-
-    private String buildRelatedChunkSourceLabel(RelatedChunkContext chunk) {
-        String title = StringUtils.defaultIfBlank(chunk.title(), "Untitled Record");
-        return "%s (Record %d)".formatted(title, chunk.recordId());
-    }
-
-    private String formatContextDate(ZonedDateTime value) {
-        return value == null ? "unknown" : value.format(DateTimeFormatter.ISO_LOCAL_DATE);
-    }
-
-    private record RelatedChunkContext(Long recordId, String title, ZonedDateTime createdAt, ZonedDateTime modifiedAt, Double score, boolean oldRecord, String text) {
-        private ZonedDateTime lastModifiedAtForSort() {
-            return modifiedAt != null ? modifiedAt : createdAt;
-        }
     }
 
     @Async
@@ -342,9 +194,9 @@ public class LlmRecordService {
     private String generateChatTitle(String summary, String transcript) {
         LlmChatRequest request = new LlmChatRequest();
         request.setTemperature(0.1);
-        request.setMaxTokens(300);
+        request.setMaxTokens(BuiltInLlmTokenLimits.CHAT_RECORD_TITLE_MAX_TOKENS);
         request.setMessages(List.of(
-                new LlmChatMessage("system", "Create a one-line short title for this chat record. Do not think step by step. Return only the title, no quotes, no markdown, no punctuation at the end."),
+                new LlmChatMessage("system", BuiltInPrompts.CHAT_RECORD_TITLE_SYSTEM_PROMPT),
                 new LlmChatMessage("user", truncate("Summary:\n%s\n\nTranscript:\n%s".formatted(summary, transcript), 8000))
         ));
         LlmChatResponse response = marketPulseApiService.chatWithLlm(request);
@@ -358,9 +210,9 @@ public class LlmRecordService {
     private String summarizeChat(String transcript) {
         LlmChatRequest request = new LlmChatRequest();
         request.setTemperature(0.2);
-        request.setMaxTokens(700);
+        request.setMaxTokens(BuiltInLlmTokenLimits.CHAT_RECORD_SUMMARY_MAX_TOKENS);
         request.setMessages(List.of(
-                new LlmChatMessage("system", "Summarize this chat as a concise record. Include decisions, facts, and next actions when present."),
+                new LlmChatMessage("system", BuiltInPrompts.CHAT_RECORD_SUMMARY_SYSTEM_PROMPT),
                 new LlmChatMessage("user", truncate(transcript, 10000))
         ));
         LlmChatResponse response = marketPulseApiService.chatWithLlm(request);

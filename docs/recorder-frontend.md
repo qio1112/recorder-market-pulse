@@ -66,9 +66,9 @@
   - `getOptionExpiries(symbol) -> string[]`.
   - `getOptionHistory(symbol, expiry, optionType) -> OptionHistoryResponse`.
 - `LlmService.js`
-  - `sendLlmChat(messages, { includeRelatedRecords=false } = {}) -> { reply }`.
+  - `sendLlmChat(messages, { includeRelatedRecords=false, chatMode=null } = {}) -> { reply }`.
   - Sends only API-safe chat fields `{ role, content }`; UI-only fields such as timestamps are stripped before the request.
-  - Uses a 60-second timeout for normal chat and sends `max_tokens: 5000`.
+  - Sends `max_tokens: 5000`; uses a longer timeout for `RECORD_AGENT` mode than normal chat.
   - `generateRecordLabels({ title, content, maxLabels }) -> { labels }`.
   - `saveLlmChatAsRecord(messages, isPublic=false) -> { status, message }`.
   - Uses longer per-call timeouts for label generation/chat-record job start than the shared Axios default.
@@ -206,18 +206,19 @@ Actions:
   - Checks LLM availability through `/api/llm/chat`; shows `No LLM connection` when unavailable.
   - Uses a viewport-height panel so the conversation fills most of the screen and scrolls internally.
   - Stores visible chat messages in `localStorage` under `recorder.llmChat.messages`.
+  - Stores the record-agent checkbox in `localStorage` so test mode persists across visits.
   - Chat messages include `createdAt` timestamps for display. Older stored messages without timestamps still load.
   - Transient LLM failures/timeouts keep the visible and stored chat history; only auth failures clear history.
-  - Real user chat sends set `includeRelatedRecords: true`, so backend can inject top related Qdrant chunks. Connection checks do not include related records.
+  - Real user chat can use either `RELATED_CONTEXT` eager Qdrant enrichment or `RECORD_AGENT` dynamic record-tool mode. Connection checks stay plain and do not include related records.
   - The refresh icon starts a new chat by clearing on-screen messages and saved history.
-  - `Add Chat As Record` sends the current visible chat to `/api/llm/chat-record`; backend accepts the job asynchronously and the page shows that creation started rather than waiting for completion.
+  - `Add Chat As Record` sends the current visible chat to `/api/llm/chat-record`; backend accepts the job asynchronously and saves a summary-only record.
 - `views/AdminToolsPage.vue`
   - Admin-only page under Tools.
-  - Shows job status panels for Market Pulse, LLM, stock freshness, option freshness, and Qdrant count consistency.
+  - Shows job status panels for Market Pulse, LLM, stock freshness, option freshness, and Qdrant consistency.
   - Groups schedules by job type so repeated built-in jobs, such as status email or stock/option updates at multiple times, appear as one job with multiple wrapping schedule chips.
   - Job tables share fixed column widths across status, data-update, and other job sections, and show next run, most recent run time, and latest status.
   - Separates status-check jobs from data-update jobs. Data-update jobs include stock/option updates, after-close stock refreshes, market-news record generation, and expired option parquet combines.
-  - Hides internal Qdrant record upsert/delete jobs from the dashboard job tables; only the Qdrant consistency check remains visible.
+  - Hides internal Qdrant record upsert/delete jobs from the dashboard job tables. Qdrant consistency is visible; Qdrant datafix appears under Other Jobs for manual repair.
   - Each grouped job has one compact manual `Run` action. Triggered jobs show an immediate `STARTING` state with a spinner for at least one second before polling the real execution status.
   - Each grouped job has its own history dropdown backed by job-type execution history. Long history lists scroll, and selecting an execution shows admin-only details.
   - Status-check jobs include a `Run All` action that triggers every visible status check without changing data-update jobs.

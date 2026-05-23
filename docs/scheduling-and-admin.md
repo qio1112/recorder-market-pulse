@@ -38,13 +38,14 @@ Dashboard grouping:
 
 - Jobs are grouped by `jobType`, so multiple schedules for the same built-in job appear as one row with multiple schedule chips.
 - Status checks are separate from data update jobs.
-- Qdrant record upsert/delete jobs are internal and hidden from dashboard job tables. The visible Qdrant job is the count-level consistency check.
+- Qdrant record upsert/delete jobs are internal and hidden from dashboard job tables. The visible Qdrant jobs are consistency check and manual datafix.
 
 Key built-in job defaults:
 
 - `STOCK_DATA_FRESHNESS_CHECK`: daily 22:00.
 - `OPTION_DATA_FRESHNESS_CHECK`: daily 22:00. Uses latest successful `STOCK_AFTER_CLOSE_REFRESH` as freshness reference and still reports option symbols with expiry counts.
 - `QDRANT_CONSISTENCY_CHECK`: daily 22:00.
+- `QDRANT_DATAFIX`: manual Other Jobs entry for repairing Qdrant drift.
 - `JOB_EXECUTION_CLEANUP`: daily 23:00.
 - `STOCK_OPTION_DATA_UPDATE`: label is "Update day time option data".
 
@@ -106,7 +107,8 @@ Record create/update/delete and chat-to-record flows queue durable admin-job exe
 
 These jobs are hidden from the dashboard rows because they are internal consistency work. The dashboard keeps only:
 
-- `QDRANT_CONSISTENCY_CHECK`: count-level status that is good enough for current admin monitoring.
+- `QDRANT_CONSISTENCY_CHECK`: compares backend record ids with Qdrant record ids and reports missing and stale vectors.
+- `QDRANT_DATAFIX`: manually upserts records missing from Qdrant and deletes vectors for deleted/nonexisting records.
 
 Qdrant calls should stay asynchronous from user workflows. User-facing save/delete should not wait on vector indexing beyond creating the durable execution row.
 

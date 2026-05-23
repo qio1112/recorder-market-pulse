@@ -250,9 +250,13 @@ public class MarketPulseApiService {
     }
 
     public LlmChatResponse chatWithLlm(LlmChatRequest request) {
+        return chatWithLlm(request, Duration.ofSeconds(30));
+    }
+
+    public LlmChatResponse chatWithLlm(LlmChatRequest request, Duration readTimeout) {
         String url = marketPulseBaseUrl + "/llm/chat";
         logger.info("Calling Market Pulse LLM chat API: {}", url);
-        RestTemplate llmTimeoutRestTemplate = buildRestTemplateWithTimeouts(Duration.ofSeconds(10), Duration.ofSeconds(30));
+        RestTemplate llmTimeoutRestTemplate = buildRestTemplateWithTimeouts(Duration.ofSeconds(10), readTimeout);
         ResponseEntity<LlmChatResponse> response = llmTimeoutRestTemplate.postForEntity(
                 url,
                 buildJsonRequest(request),

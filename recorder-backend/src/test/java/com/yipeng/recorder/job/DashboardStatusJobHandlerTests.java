@@ -21,6 +21,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -144,9 +145,7 @@ class DashboardStatusJobHandlerTests {
         failedUpsert.setJobType(JobType.QDRANT_RECORD_UPSERT);
         failedUpsert.setStatus(JobStatus.FAILED);
         when(recordRepository.findAllRecordIds()).thenReturn(List.of(1L, 2L, 3L));
-        when(qdrantEmbeddingService.recordExists("1")).thenReturn(true);
-        when(qdrantEmbeddingService.recordExists("2")).thenReturn(false);
-        when(qdrantEmbeddingService.recordExists("3")).thenThrow(new RuntimeException("qdrant down"));
+        when(qdrantEmbeddingService.listRecordIds()).thenReturn(Set.of("1", "3", "99"));
         when(jobExecutionRepository.findTop50ByOrderByCreatedAtDesc()).thenReturn(List.of(failedUpsert));
 
         JobResult result = new QdrantConsistencyCheckJobHandler(
@@ -158,7 +157,8 @@ class DashboardStatusJobHandlerTests {
         assertEquals(3, result.details().get("recordCount"));
         assertEquals(3, result.details().get("checkedCount"));
         assertEquals(1, result.details().get("missingCount"));
-        assertEquals(1, result.details().get("failedCheckCount"));
+        assertEquals(1, result.details().get("staleCount"));
+        assertEquals(0, result.details().get("failedCheckCount"));
         assertEquals(1L, result.details().get("failedUpsertDeleteCount"));
     }
 }

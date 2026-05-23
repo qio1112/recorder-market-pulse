@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 public class QdrantConsistencyCheckJobHandler implements JobHandler {
@@ -34,19 +36,28 @@ public class QdrantConsistencyCheckJobHandler implements JobHandler {
     @Override
     public JobResult run(JobContext context) {
         List<Long> recordIds = recordRepository.findAllRecordIds();
-        int checkedCount = 0;
+        Set<String> backendRecordIds = recordIds.stream()
+                .map(String::valueOf)
+                .collect(Collectors.toSet());
+        int checkedCount = recordIds.size();
         int missingCount = 0;
+        int staleCount = 0;
         int failedCheckCount = 0;
 
-        for (Long recordId : recordIds) {
-            try {
-                checkedCount++;
-                if (!qdrantEmbeddingService.recordExists(recordId.toString())) {
+        try {
+            Set<String> qdrantRecordIds = qdrantEmbeddingService.listRecordIds();
+            for (String recordId : backendRecordIds) {
+                if (!qdrantRecordIds.contains(recordId)) {
                     missingCount++;
                 }
-            } catch (Exception e) {
-                failedCheckCount++;
             }
+            for (String recordId : qdrantRecordIds) {
+                if (!backendRecordIds.contains(recordId)) {
+                    staleCount++;
+                }
+            }
+        } catch (Exception e) {
+            failedCheckCount = recordIds.size();
         }
 
         long failedQdrantJobCount = jobExecutionRepository.findTop50ByOrderByCreatedAtDesc().stream()
@@ -60,12 +71,13 @@ public class QdrantConsistencyCheckJobHandler implements JobHandler {
         details.put("recordCount", recordIds.size());
         details.put("checkedCount", checkedCount);
         details.put("missingCount", missingCount);
-        details.put("staleCount", 0);
+        details.put("staleCount", staleCount);
         details.put("failedCheckCount", failedCheckCount);
         details.put("failedUpsertDeleteCount", failedQdrantJobCount);
-        return JobResult.of("Checked Qdrant consistency: %d records, %d missing, %d failed checks.".formatted(
+        return JobResult.of("Checked Qdrant consistency: %d records, %d missing, %d stale, %d failed checks.".formatted(
                 recordIds.size(),
                 missingCount,
+                staleCount,
                 failedCheckCount
         ), details);
     }

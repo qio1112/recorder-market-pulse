@@ -68,6 +68,11 @@ class ExistsRequest(BaseModel):
     collection: str = Field(default=qe.COLLECTION)
 
 
+class RecordIdsRequest(BaseModel):
+    collection: str = Field(default=qe.COLLECTION)
+    page_size: int = Field(default=256, gt=0, le=2000)
+
+
 @router.post("/upsert")
 def upsert_record(payload: UpsertRequest, deps=Depends(_get_clients)):
     qdrant, embed_model = deps
@@ -158,3 +163,17 @@ def record_exists(payload: ExistsRequest, deps=Depends(_get_clients)):
     except Exception as exc:  # pragma: no cover - runtime surfacing
         raise HTTPException(status_code=500, detail=f"qdrant exists check failed: {exc}") from exc
     return {"record_id": payload.record_id, "exists": exists}
+
+
+@router.post("/record-ids")
+def list_record_ids(payload: RecordIdsRequest, deps=Depends(_get_clients)):
+    qdrant, _ = deps
+    try:
+        record_ids = qe.list_record_ids(
+            qdrant=qdrant,
+            collection=payload.collection,
+            page_size=payload.page_size,
+        )
+    except Exception as exc:  # pragma: no cover - runtime surfacing
+        raise HTTPException(status_code=500, detail=f"qdrant record id list failed: {exc}") from exc
+    return {"record_ids": record_ids}
