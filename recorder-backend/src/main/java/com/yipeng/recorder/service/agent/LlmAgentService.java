@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yipeng.recorder.model.User;
+import com.yipeng.recorder.prompt.BuiltInLlmTokenLimits;
 import com.yipeng.recorder.prompt.BuiltInPrompts;
 import com.yipeng.recorder.request.LlmChatMessage;
 import com.yipeng.recorder.request.LlmChatRequest;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -26,10 +28,13 @@ public class LlmAgentService {
 
     private static final Logger logger = LoggerFactory.getLogger(LlmAgentService.class);
 
-    private static final int MAX_TOOL_ITERATIONS = 3;
-    private static final String NO_FINAL_ANSWER_FALLBACK = "I could not produce a useful final answer. No matching Recorder records may have been found; please try a more specific question.";
-    private static final Duration AGENT_LLM_READ_TIMEOUT = Duration.ofSeconds(90);
+    private static final String NO_RECORDS_FOUND_MESSAGE = "No related Recorder records were found for this question.";
+    private static final String RECORD_SEARCH_FAILED_MESSAGE = "I could not search Recorder records for this question. Please try again or use related-context mode.";
+    private static final String RECORDS_FOUND_BUT_NO_ANSWER_FALLBACK = "I found related Recorder records, but the local model did not produce a usable answer. Try rephrasing the question or use related-context mode.";
+    private static final String NO_FINAL_ANSWER_FALLBACK = "I could not produce a useful final answer. Please try a more specific question.";
+    private static final Duration AGENT_LLM_READ_TIMEOUT = Duration.ofSeconds(240);
     private static final Pattern TOOL_CALL_TOKEN_PATTERN = Pattern.compile("(?i)<\\|?/?tool_calls?\\|?>");
+    private static final Pattern HAS_WORD_PATTERN = Pattern.compile("(?is).*\\b[a-z]{2,}\\b.*");
 
     private final MarketPulseApiService marketPulseApiService;
     private final LlmAgentToolRegistry toolRegistry;
@@ -45,35 +50,61 @@ public class LlmAgentService {
 
     public LlmChatResponse chatWithTools(LlmChatRequest request, User user) {
         LlmChatRequest workingRequest = copyRequestWithAgentInstructions(request);
-        for (int i = 0; i < MAX_TOOL_ITERATIONS; i++) {
-            LlmChatResponse response = marketPulseApiService.chatWithLlm(workingRequest, AGENT_LLM_READ_TIMEOUT);
-            String reply = response == null ? "" : StringUtils.defaultString(response.getReply()).trim();
-            AgentReply agentReply = parseAgentReply(reply);
-            if (agentReply.finalAnswer() != null) {
-                return new LlmChatResponse(agentReply.finalAnswer());
-            }
-            if (agentReply.retryInstruction() != null) {
-                workingRequest.getMessages().add(new LlmChatMessage("assistant", sanitizeAssistantReply(reply)));
-                workingRequest.getMessages().add(new LlmChatMessage("system", agentReply.retryInstruction()));
-                continue;
-            }
-            if (agentReply.toolCall() == null) {
-                return new LlmChatResponse(reply);
-            }
-            LlmAgentToolResult toolResult = executeTool(agentReply.toolCall(), user);
-            workingRequest.getMessages().add(new LlmChatMessage("assistant", renderToolCallForHistory(agentReply.toolCall())));
-            workingRequest.getMessages().add(new LlmChatMessage("system", toolResult.renderForModel()));
+        LlmChatResponse response = marketPulseApiService.chatWithLlm(workingRequest, AGENT_LLM_READ_TIMEOUT);
+        String reply = response == null ? "" : StringUtils.defaultString(response.getReply()).trim();
+        AgentReply agentReply = parseAgentReply(reply);
+        if (agentReply.finalAnswer() != null) {
+            logger.info("LLM record agent completed without search: finalChars={}", agentReply.finalAnswer().length());
+            return new LlmChatResponse(agentReply.finalAnswer());
+        }
+        if (agentReply.toolCall() == null) {
+            logger.info("LLM record agent produced no usable tool request: finalChars={}, fallbackReason=initial_unusable_output", reply.length());
+            return new LlmChatResponse(NO_FINAL_ANSWER_FALLBACK);
         }
 
-        workingRequest.getMessages().add(new LlmChatMessage(
-                "system",
-                BuiltInPrompts.AGENT_TOOL_ITERATION_LIMIT
-        ));
-        LlmChatResponse finalResponse = marketPulseApiService.chatWithLlm(workingRequest, AGENT_LLM_READ_TIMEOUT);
+        LlmAgentToolCall toolCall = agentReply.toolCall();
+        if (!"search_records".equals(toolCall.getToolName())) {
+            logger.info("LLM record agent requested unsupported tool: name={}, fallbackReason=unsupported_tool", toolCall.getToolName());
+            return new LlmChatResponse(NO_FINAL_ANSWER_FALLBACK);
+        }
+
+        LlmAgentToolResult toolResult = executeTool(toolCall, user);
+        String toolContent = toolResult.renderForModel();
+        boolean recordsFound = toolResult.isSuccess() && hasRelatedRecords(toolContent);
+        int contextChars = toolContent.length();
+        logger.info("LLM record agent search result: query={}, chunkCount={}, contextChars={}, success={}",
+                getToolQuery(toolCall),
+                estimateChunkCount(toolContent),
+                contextChars,
+                toolResult.isSuccess());
+        if (!toolResult.isSuccess()) {
+            logger.info("LLM record agent returning without final synthesis: query={}, fallbackReason=tool_error",
+                    getToolQuery(toolCall));
+            return new LlmChatResponse(RECORD_SEARCH_FAILED_MESSAGE);
+        }
+        if (!recordsFound) {
+            logger.info("LLM record agent returning without final synthesis: query={}, fallbackReason=no_records",
+                    getToolQuery(toolCall));
+            return new LlmChatResponse(NO_RECORDS_FOUND_MESSAGE);
+        }
+
+        LlmChatRequest finalRequest = buildFinalAnswerRequest(request, toolContent);
+        LlmChatResponse finalResponse = marketPulseApiService.chatWithLlm(finalRequest, AGENT_LLM_READ_TIMEOUT);
         String finalReply = finalResponse == null ? "" : StringUtils.defaultString(finalResponse.getReply()).trim();
-        AgentReply parsedFinal = parseAgentReply(finalReply);
-        String finalAnswer = parsedFinal.finalAnswer() != null ? parsedFinal.finalAnswer() : finalReply;
-        return new LlmChatResponse(isUsefulFinalAnswer(finalAnswer) ? finalAnswer : NO_FINAL_ANSWER_FALLBACK);
+        String finalAnswer = extractStrictFinalAnswer(finalReply);
+        if (isUsefulFinalAnswer(finalAnswer) && !isLowSignalOutput(finalAnswer)) {
+            logger.info("LLM record agent final synthesis completed: query={}, contextChars={}, finalChars={}",
+                    getToolQuery(toolCall),
+                    contextChars,
+                    finalAnswer.length());
+            return new LlmChatResponse(finalAnswer);
+        }
+
+        logger.info("LLM record agent final synthesis fallback: query={}, contextChars={}, finalChars={}, fallbackReason=unusable_final_output",
+                getToolQuery(toolCall),
+                contextChars,
+                finalReply.length());
+        return new LlmChatResponse(RECORDS_FOUND_BUT_NO_ANSWER_FALLBACK);
     }
 
     private LlmAgentToolResult executeTool(LlmAgentToolCall toolCall, User user) {
@@ -99,7 +130,7 @@ public class LlmAgentService {
     private LlmChatRequest copyRequestWithAgentInstructions(LlmChatRequest request) {
         LlmChatRequest copy = new LlmChatRequest();
         copy.setTemperature(request == null ? null : request.getTemperature());
-        copy.setMaxTokens(request == null ? null : request.getMaxTokens());
+        copy.setMaxTokens(BuiltInLlmTokenLimits.RECORD_AGENT_CHAT_MAX_TOKENS);
         copy.setChatMode("RECORD_AGENT");
         List<LlmChatMessage> messages = new ArrayList<>();
         messages.add(new LlmChatMessage("system", buildAgentSystemPrompt()));
@@ -111,6 +142,24 @@ public class LlmAgentService {
         }
         copy.setMessages(messages);
         return copy;
+    }
+
+    private LlmChatRequest buildFinalAnswerRequest(LlmChatRequest originalRequest, String toolContent) {
+        LlmChatRequest finalRequest = new LlmChatRequest();
+        finalRequest.setTemperature(originalRequest == null ? null : originalRequest.getTemperature());
+        finalRequest.setMaxTokens(BuiltInLlmTokenLimits.RECORD_AGENT_CHAT_MAX_TOKENS);
+        finalRequest.setChatMode("RECORD_AGENT");
+        List<LlmChatMessage> messages = new ArrayList<>();
+        messages.add(new LlmChatMessage("system", BuiltInPrompts.AGENT_FINAL_ANSWER_SYSTEM_PROMPT));
+        messages.add(new LlmChatMessage("user", """
+                User question:
+                %s
+
+                Recorder record excerpts:
+                %s
+                """.formatted(latestUserQuestion(originalRequest), toolContent).trim()));
+        finalRequest.setMessages(messages);
+        return finalRequest;
     }
 
     private boolean isInternalToolMarkerMessage(LlmChatMessage message) {
@@ -132,17 +181,17 @@ public class LlmAgentService {
     private AgentReply parseAgentReply(String reply) {
         String raw = StringUtils.defaultString(reply).trim();
         if (raw.isBlank()) {
-            return AgentReply.retry(BuiltInPrompts.AGENT_EMPTY_OR_PLACEHOLDER_FINAL);
+            return AgentReply.empty();
         }
         boolean hasToolCallToken = TOOL_CALL_TOKEN_PATTERN.matcher(raw).find();
         String cleaned = stripToolCallTokens(stripJsonFences(raw));
         List<String> candidates = extractJsonObjects(cleaned);
         if (candidates.isEmpty()) {
             return hasToolCallToken
-                    ? AgentReply.retry(BuiltInPrompts.AGENT_TOOL_CALL_PARSE_FAILURE)
+                    ? AgentReply.empty()
                     : isUsefulFinalAnswer(reply)
                     ? AgentReply.finalAnswer(reply)
-                    : AgentReply.retry(BuiltInPrompts.AGENT_EMPTY_OR_PLACEHOLDER_FINAL);
+                    : AgentReply.empty();
         }
         boolean parsedAnyJson = false;
         for (String candidate : candidates) {
@@ -153,7 +202,7 @@ public class LlmAgentService {
                 if (finalAnswer instanceof String text) {
                     return isUsefulFinalAnswer(text)
                             ? AgentReply.finalAnswer(text)
-                            : AgentReply.retry(BuiltInPrompts.AGENT_EMPTY_OR_PLACEHOLDER_FINAL);
+                            : AgentReply.empty();
                 }
                 LlmAgentToolCall toolCall = parseToolCall(parsed);
                 if (toolCall != null) {
@@ -161,12 +210,12 @@ public class LlmAgentService {
                 }
             } catch (JsonProcessingException | IllegalArgumentException ignored) {
                 if (hasToolCallToken) {
-                    return AgentReply.retry(BuiltInPrompts.AGENT_TOOL_CALL_PARSE_FAILURE);
+                    return AgentReply.empty();
                 }
             }
         }
         return parsedAnyJson
-                ? AgentReply.retry(BuiltInPrompts.AGENT_EMPTY_OR_PLACEHOLDER_FINAL)
+                ? AgentReply.empty()
                 : AgentReply.finalAnswer(reply);
     }
 
@@ -205,6 +254,87 @@ public class LlmAgentService {
             }
         }
         return null;
+    }
+
+    private String extractStrictFinalAnswer(String reply) {
+        String raw = StringUtils.defaultString(reply).trim();
+        if (raw.isBlank() || TOOL_CALL_TOKEN_PATTERN.matcher(raw).find()) {
+            return "";
+        }
+        String cleaned = stripJsonFences(raw);
+        if (isUsefulFinalAnswer(cleaned) && !looksLikeOnlyJsonObject(cleaned)) {
+            return cleaned;
+        }
+        AgentReply parsed = parseAgentReply(cleaned);
+        if (parsed.toolCall() != null) {
+            return "";
+        }
+        return parsed.finalAnswer() == null ? "" : parsed.finalAnswer();
+    }
+
+    private boolean looksLikeOnlyJsonObject(String value) {
+        String normalized = StringUtils.defaultString(value).trim();
+        return normalized.startsWith("{") && normalized.endsWith("}");
+    }
+
+    private boolean hasRelatedRecords(String toolContent) {
+        String normalized = StringUtils.defaultString(toolContent).toLowerCase(Locale.ROOT);
+        return normalized.contains("related records found:")
+                && !normalized.contains("no related records were found");
+    }
+
+    private int estimateChunkCount(String toolContent) {
+        String normalized = StringUtils.defaultString(toolContent);
+        int marker = normalized.indexOf("Related records found:");
+        if (marker < 0) {
+            return 0;
+        }
+        String suffix = normalized.substring(marker + "Related records found:".length()).trim();
+        int end = 0;
+        while (end < suffix.length() && Character.isDigit(suffix.charAt(end))) {
+            end++;
+        }
+        if (end == 0) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(suffix.substring(0, end));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    private String latestUserQuestion(LlmChatRequest request) {
+        if (request == null || request.getMessages() == null) {
+            return "";
+        }
+        for (int i = request.getMessages().size() - 1; i >= 0; i--) {
+            LlmChatMessage message = request.getMessages().get(i);
+            if (message != null && "user".equalsIgnoreCase(StringUtils.defaultString(message.getRole()))) {
+                return StringUtils.defaultString(message.getContent()).trim();
+            }
+        }
+        return "";
+    }
+
+    private String getToolQuery(LlmAgentToolCall toolCall) {
+        Object query = toolCall == null || toolCall.getArguments() == null ? null : toolCall.getArguments().get("query");
+        return query instanceof String text ? text : "";
+    }
+
+    private boolean isLowSignalOutput(String value) {
+        String normalized = StringUtils.defaultString(value).trim();
+        if (normalized.length() < 40) {
+            return false;
+        }
+        if (!HAS_WORD_PATTERN.matcher(normalized).matches()) {
+            return true;
+        }
+        long whitespace = normalized.chars().filter(Character::isWhitespace).count();
+        long lettersOrDigits = normalized.chars().filter(Character::isLetterOrDigit).count();
+        double whitespaceRatio = whitespace / (double) normalized.length();
+        double lettersOrDigitsRatio = lettersOrDigits / (double) normalized.length();
+        return whitespaceRatio < 0.03d && lettersOrDigitsRatio > 0.80d;
     }
 
     private Map<String, Object> parseArguments(Object rawArguments) {
@@ -271,22 +401,6 @@ public class LlmAgentService {
         return TOOL_CALL_TOKEN_PATTERN.matcher(StringUtils.defaultString(value)).replaceAll("").trim();
     }
 
-    private String sanitizeAssistantReply(String reply) {
-        String sanitized = stripToolCallTokens(stripJsonFences(StringUtils.defaultString(reply).trim()));
-        return sanitized.isBlank() ? "{}" : sanitized;
-    }
-
-    private String renderToolCallForHistory(LlmAgentToolCall toolCall) {
-        try {
-            return objectMapper.writeValueAsString(Map.of(
-                    "tool", toolCall.getToolName(),
-                    "arguments", toolCall.getArguments()
-            ));
-        } catch (JsonProcessingException ignored) {
-            return "{\"tool\":\"%s\",\"arguments\":{}}".formatted(toolCall.getToolName());
-        }
-    }
-
     private String stripJsonFences(String value) {
         if (!value.startsWith("```")) {
             return value;
@@ -302,17 +416,17 @@ public class LlmAgentService {
                 .toString();
     }
 
-    private record AgentReply(String finalAnswer, LlmAgentToolCall toolCall, String retryInstruction) {
+    private record AgentReply(String finalAnswer, LlmAgentToolCall toolCall) {
         private static AgentReply finalAnswer(String finalAnswer) {
-            return new AgentReply(finalAnswer, null, null);
+            return new AgentReply(finalAnswer, null);
         }
 
         private static AgentReply toolCall(LlmAgentToolCall toolCall) {
-            return new AgentReply(null, toolCall, null);
+            return new AgentReply(null, toolCall);
         }
 
-        private static AgentReply retry(String retryInstruction) {
-            return new AgentReply(null, null, retryInstruction);
+        private static AgentReply empty() {
+            return new AgentReply(null, null);
         }
     }
 }

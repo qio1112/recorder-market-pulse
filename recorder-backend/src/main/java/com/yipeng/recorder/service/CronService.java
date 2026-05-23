@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 public class CronService {
 
     private static final Logger logger = LoggerFactory.getLogger(CronService.class);
+    private static final int MARKET_NEWS_SUMMARY_SYMBOLS_PER_RECORD = 3;
 
     @Value("${admin.email}")
     private String adminEmail;
@@ -153,8 +154,11 @@ public class CronService {
                 ? "Market News Summary " + dateTimeUtils.getCurrentDateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
                 : "Market News Summary " + today;
 
-        for (int index = 0; index < summaries.size(); index += 5) {
-            List<StockNewsSymbolSummaryResponse> chunk = summaries.subList(index, Math.min(index + 5, summaries.size()));
+        for (int index = 0; index < summaries.size(); index += MARKET_NEWS_SUMMARY_SYMBOLS_PER_RECORD) {
+            List<StockNewsSymbolSummaryResponse> chunk = summaries.subList(
+                    index,
+                    Math.min(index + MARKET_NEWS_SUMMARY_SYMBOLS_PER_RECORD, summaries.size())
+            );
             List<String> symbols = chunk.stream().map(this::normalizeSymbol).filter(symbol -> !symbol.isBlank()).toList();
             String title = titleBase + " " + StringUtils.join(symbols, "-");
             String content = buildMarketNewsSummaryContent(response == null ? null : response.getGeneratedAt(), chunk);

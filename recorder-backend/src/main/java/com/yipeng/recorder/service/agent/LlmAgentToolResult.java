@@ -30,6 +30,14 @@ public class LlmAgentToolResult {
         return success;
     }
 
+    public String getContent() {
+        return content;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
     public String renderForModel() {
         if (success) {
             return content;

@@ -2,11 +2,13 @@ package com.yipeng.recorder.service.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yipeng.recorder.model.User;
+import com.yipeng.recorder.prompt.BuiltInLlmTokenLimits;
 import com.yipeng.recorder.request.LlmChatMessage;
 import com.yipeng.recorder.request.LlmChatRequest;
 import com.yipeng.recorder.response.LlmChatResponse;
 import com.yipeng.recorder.service.MarketPulseApiService;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Duration;
 import java.util.List;
@@ -27,11 +29,7 @@ class LlmAgentServiceTests {
     void directAnswerReturnsWithoutToolExecution() {
         MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
         LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
+        LlmAgentService service = service(marketPulseApiService, tool);
         when(marketPulseApiService.chatWithLlm(any(), any(Duration.class))).thenReturn(new LlmChatResponse("{\"final\":\"done\"}"));
 
         LlmChatResponse response = service.chatWithTools(request("hello"), new User());
@@ -42,262 +40,12 @@ class LlmAgentServiceTests {
     }
 
     @Test
-    void proseAnswerIsTreatedAsFinalAnswer() {
+    void noRecordToolResultReturnsImmediatelyWithoutFinalLlmCall() {
         MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
         LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
-        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class))).thenReturn(new LlmChatResponse("plain final answer"));
-
-        LlmChatResponse response = service.chatWithTools(request("hello"), new User());
-
-        assertEquals("plain final answer", response.getReply());
-        verify(tool, never()).execute(any(), any());
-    }
-
-    @Test
-    void placeholderFinalAnswerRetriesInsteadOfReturningPlaceholder() {
-        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
-        LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
+        LlmAgentService service = service(marketPulseApiService, tool);
         when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
-                .thenReturn(new LlmChatResponse("{\"final\":\"answer text\"}"))
-                .thenReturn(new LlmChatResponse("{\"final\":\"No matching records were found.\"}"));
-
-        LlmChatResponse response = service.chatWithTools(request("untracked stock"), new User());
-
-        assertEquals("No matching records were found.", response.getReply());
-        verify(tool, never()).execute(any(), any());
-        verify(marketPulseApiService, times(2)).chatWithLlm(any(), any(Duration.class));
-    }
-
-    @Test
-    void emptyJsonObjectsBeforeFinalAreIgnored() {
-        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
-        LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
-        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
-                .thenReturn(new LlmChatResponse("""
-                        {}
-                        {}
-                        {"final":"The useful answer is here."}
-                        """));
-
-        LlmChatResponse response = service.chatWithTools(request("hello"), new User());
-
-        assertEquals("The useful answer is here.", response.getReply());
-        verify(tool, never()).execute(any(), any());
-        verify(marketPulseApiService, times(1)).chatWithLlm(any(), any(Duration.class));
-    }
-
-    @Test
-    void bareEmptyJsonRetriesInsteadOfReturningBraces() {
-        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
-        LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
-        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
-                .thenReturn(new LlmChatResponse("{}"))
-                .thenReturn(new LlmChatResponse("{\"final\":\"Recovered from empty JSON.\"}"));
-
-        LlmChatResponse response = service.chatWithTools(request("hello"), new User());
-
-        assertEquals("Recovered from empty JSON.", response.getReply());
-        verify(tool, never()).execute(any(), any());
-        verify(marketPulseApiService, times(2)).chatWithLlm(any(), any(Duration.class));
-    }
-
-    @Test
-    void emptyReplyRetriesAndFallsBackToUsefulMessage() {
-        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
-        LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
-        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class))).thenReturn(new LlmChatResponse(""));
-
-        LlmChatResponse response = service.chatWithTools(request("unknown market"), new User());
-
-        assertTrue(response.getReply().contains("could not produce"));
-        verify(tool, never()).execute(any(), any());
-    }
-
-    @Test
-    void searchRecordsToolRequestExecutesRegisteredToolAndLoopsToFinalAnswer() {
-        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
-        LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
-        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
-                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"tax notes\",\"limit\":3}}"))
-                .thenReturn(new LlmChatResponse("{\"final\":\"I found tax notes.\"}"));
-        when(tool.execute(any(), any())).thenReturn(LlmAgentToolResult.success("search_records", "TOOL_RESULT search_records\nFound notes."));
-
-        LlmChatResponse response = service.chatWithTools(request("find tax notes"), new User());
-
-        assertEquals("I found tax notes.", response.getReply());
-        verify(tool, times(1)).execute(any(), any());
-        verify(marketPulseApiService, times(2)).chatWithLlm(any(), any(Duration.class));
-    }
-
-    @Test
-    void toolCallTokenWrappedJsonExecutesRegisteredTool() {
-        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
-        LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
-        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
-                .thenReturn(new LlmChatResponse("<tool_call|>{\"name\":\"search_records\",\"arguments\":{\"query\":\"NVDA\",\"limit\":2}}<|/tool_call|>"))
-                .thenReturn(new LlmChatResponse("{\"final\":\"NVDA context found.\"}"));
-        when(tool.execute(any(), any())).thenReturn(LlmAgentToolResult.success("search_records", "TOOL_RESULT search_records\nFound NVDA."));
-
-        LlmChatResponse response = service.chatWithTools(request("NVDA"), new User());
-
-        assertEquals("NVDA context found.", response.getReply());
-        verify(tool, times(1)).execute(any(), any());
-        verify(marketPulseApiService, times(2)).chatWithLlm(any(), any(Duration.class));
-    }
-
-    @Test
-    void openAiStyleToolCallsShapeExecutesRegisteredTool() {
-        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
-        LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
-        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
-                .thenReturn(new LlmChatResponse("""
-                        {"tool_calls":[{"function":{"name":"search_records","arguments":"{\\"query\\":\\"portfolio\\",\\"limit\\":1}"}}]}
-                        """))
-                .thenReturn(new LlmChatResponse("{\"final\":\"Portfolio context found.\"}"));
-        when(tool.execute(any(), any())).thenReturn(LlmAgentToolResult.success("search_records", "TOOL_RESULT search_records\nFound portfolio."));
-
-        LlmChatResponse response = service.chatWithTools(request("portfolio"), new User());
-
-        assertEquals("Portfolio context found.", response.getReply());
-        verify(tool, times(1)).execute(any(), any());
-    }
-
-    @Test
-    void bareToolCallTokenRetriesInsteadOfReturningMarkerToUi() {
-        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
-        LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
-        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
-                .thenReturn(new LlmChatResponse("<tool_call|>"))
-                .thenReturn(new LlmChatResponse("{\"final\":\"Recovered answer.\"}"));
-
-        LlmChatResponse response = service.chatWithTools(request("recover"), new User());
-
-        assertEquals("Recovered answer.", response.getReply());
-        verify(tool, never()).execute(any(), any());
-        verify(marketPulseApiService, times(2)).chatWithLlm(any(), any(Duration.class));
-    }
-
-    @Test
-    void unknownToolReturnsControlledErrorAndDoesNotExecuteRegisteredTools() {
-        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
-        LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
-        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
-                .thenReturn(new LlmChatResponse("{\"tool\":\"delete_everything\",\"arguments\":{}}"))
-                .thenReturn(new LlmChatResponse("{\"final\":\"I cannot use that tool.\"}"));
-
-        LlmChatResponse response = service.chatWithTools(request("use bad tool"), new User());
-
-        assertEquals("I cannot use that tool.", response.getReply());
-        verify(tool, never()).execute(any(), any());
-        verify(marketPulseApiService, times(2)).chatWithLlm(any(), any(Duration.class));
-    }
-
-    @Test
-    void maxToolIterationsStopsLoopAndRequestsFinalAnswer() {
-        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
-        LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
-        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
-                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"one\"}}"))
-                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"two\"}}"))
-                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"three\"}}"))
-                .thenReturn(new LlmChatResponse("{\"final\":\"Final after limit.\"}"));
-        when(tool.execute(any(), any())).thenReturn(LlmAgentToolResult.success("search_records", "TOOL_RESULT search_records\nFound."));
-
-        LlmChatResponse response = service.chatWithTools(request("loop"), new User());
-
-        assertEquals("Final after limit.", response.getReply());
-        verify(tool, times(3)).execute(any(), any());
-        verify(marketPulseApiService, times(4)).chatWithLlm(any(), any(Duration.class));
-    }
-
-    @Test
-    void toolFailureReturnsControlledErrorAndContinues() {
-        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
-        LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
-        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
-                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"notes\"}}"))
-                .thenReturn(new LlmChatResponse("{\"final\":\"I could not search records, but here is an answer.\"}"));
-        when(tool.execute(any(), any())).thenThrow(new RuntimeException("Qdrant unavailable"));
-
-        LlmChatResponse response = service.chatWithTools(request("notes"), new User());
-
-        assertTrue(response.getReply().contains("could not search"));
-        verify(tool, times(1)).execute(any(), any());
-    }
-
-    @Test
-    void noRecordToolResultCanStillReturnFinalAnswer() {
-        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
-        LlmAgentTool tool = mockTool();
-        LlmAgentService service = new LlmAgentService(
-                marketPulseApiService,
-                new LlmAgentToolRegistry(List.of(tool)),
-                new ObjectMapper()
-        );
-        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
-                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"UNTRACKED\",\"limit\":5}}"))
-                .thenReturn(new LlmChatResponse(""))
-                .thenReturn(new LlmChatResponse("{\"final\":\"No Recorder records matched UNTRACKED.\"}"));
+                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"UNTRACKED\",\"limit\":5}}"));
         when(tool.execute(any(), any())).thenReturn(LlmAgentToolResult.success(
                 "search_records",
                 "TOOL_RESULT search_records\nQuery: UNTRACKED\nNo related records were found."
@@ -305,9 +53,189 @@ class LlmAgentServiceTests {
 
         LlmChatResponse response = service.chatWithTools(request("UNTRACKED"), new User());
 
-        assertEquals("No Recorder records matched UNTRACKED.", response.getReply());
+        assertEquals("No related Recorder records were found for this question.", response.getReply());
         verify(tool, times(1)).execute(any(), any());
-        verify(marketPulseApiService, times(3)).chatWithLlm(any(), any(Duration.class));
+        verify(marketPulseApiService, times(1)).chatWithLlm(any(), any(Duration.class));
+    }
+
+    @Test
+    void toolFailureDoesNotClaimNoRelatedRecords() {
+        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
+        LlmAgentTool tool = mockTool();
+        LlmAgentService service = service(marketPulseApiService, tool);
+        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
+                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"notes\"}}"));
+        when(tool.execute(any(), any())).thenThrow(new RuntimeException("Qdrant unavailable"));
+
+        LlmChatResponse response = service.chatWithTools(request("notes"), new User());
+
+        assertTrue(response.getReply().contains("could not search Recorder records"));
+        verify(tool, times(1)).execute(any(), any());
+        verify(marketPulseApiService, times(1)).chatWithLlm(any(), any(Duration.class));
+    }
+
+    @Test
+    void relatedRecordsFoundRunsOneFinalSynthesisCall() {
+        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
+        LlmAgentTool tool = mockTool();
+        LlmAgentService service = service(marketPulseApiService, tool);
+        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
+                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"tax notes\",\"limit\":3}}"))
+                .thenReturn(new LlmChatResponse("Tax notes mention estimated payments [12]."));
+        when(tool.execute(any(), any())).thenReturn(LlmAgentToolResult.success(
+                "search_records",
+                """
+                        TOOL_RESULT search_records
+                        Query: tax notes
+                        Related records found: 1
+
+                        Source [12]: Tax Notes | score 0.812 | modified 2026-05-01
+                        Estimated payments are due quarterly.
+                        """.trim()
+        ));
+
+        LlmChatResponse response = service.chatWithTools(request("find tax notes"), new User());
+
+        assertEquals("Tax notes mention estimated payments [12].", response.getReply());
+        verify(tool, times(1)).execute(any(), any());
+        verify(marketPulseApiService, times(2)).chatWithLlm(any(), any(Duration.class));
+    }
+
+    @Test
+    void relatedRecordsFoundAcceptsMarkdownProseFinalAnswer() {
+        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
+        LlmAgentTool tool = mockTool();
+        LlmAgentService service = service(marketPulseApiService, tool);
+        String amazonAnswer = """
+                Recent news regarding Amazon includes the following:
+
+                * **Stock Performance:** As of late May 2026, Amazon's stock has risen approximately 16.31% year-to-date, driven by strong sales and first-quarter earnings [15].
+                * **AI and Partnerships:** The company's growth is being fueled by its leadership in AI and its partnership with Anthropic [15].
+                * **Cybersecurity Initiatives:** Under "Project Glasswing," the Mythos cybersecurity model is being rolled out to select tech giants, including Amazon.
+                """.trim();
+        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
+                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"Amazon news\"}}"))
+                .thenReturn(new LlmChatResponse(amazonAnswer));
+        when(tool.execute(any(), any())).thenReturn(LlmAgentToolResult.success(
+                "search_records",
+                """
+                        TOOL_RESULT search_records
+                        Query: Amazon news
+                        Related records found: 1
+
+                        Source [15]: Amazon Stock and AI News | score 0.901 | modified 2026-05-20
+                        Amazon stock rose and AI partnerships were noted.
+                        """.trim()
+        ));
+
+        LlmChatResponse response = service.chatWithTools(request("Any news about Amazon?"), new User());
+
+        assertEquals(amazonAnswer, response.getReply());
+        verify(tool, times(1)).execute(any(), any());
+        verify(marketPulseApiService, times(2)).chatWithLlm(any(), any(Duration.class));
+    }
+
+    @Test
+    void relatedRecordsFoundButEmptyFinalOutputReturnsTruthfulFallback() {
+        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
+        LlmAgentTool tool = mockTool();
+        LlmAgentService service = service(marketPulseApiService, tool);
+        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
+                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"NVDA\"}}"))
+                .thenReturn(new LlmChatResponse(""));
+        when(tool.execute(any(), any())).thenReturn(LlmAgentToolResult.success(
+                "search_records",
+                """
+                        TOOL_RESULT search_records
+                        Query: NVDA
+                        Related records found: 1
+
+                        Source [31]: NVDA Earnings | score 0.901 | modified 2026-05-20
+                        Revenue growth remained strong.
+                        """.trim()
+        ));
+
+        LlmChatResponse response = service.chatWithTools(request("NVDA"), new User());
+
+        assertTrue(response.getReply().contains("I found related Recorder records"));
+        verify(tool, times(1)).execute(any(), any());
+        verify(marketPulseApiService, times(2)).chatWithLlm(any(), any(Duration.class));
+    }
+
+    @Test
+    void relatedRecordsFoundButSecondToolRequestDoesNotExecuteAnotherSearch() {
+        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
+        LlmAgentTool tool = mockTool();
+        LlmAgentService service = service(marketPulseApiService, tool);
+        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
+                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"portfolio\"}}"))
+                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"portfolio again\"}}"));
+        when(tool.execute(any(), any())).thenReturn(LlmAgentToolResult.success(
+                "search_records",
+                """
+                        TOOL_RESULT search_records
+                        Query: portfolio
+                        Related records found: 1
+
+                        Source [44]: Portfolio Notes | score 0.778 | modified 2026-05-21
+                        Portfolio allocation shifted toward cash.
+                        """.trim()
+        ));
+
+        LlmChatResponse response = service.chatWithTools(request("portfolio"), new User());
+
+        assertTrue(response.getReply().contains("I found related Recorder records"));
+        verify(tool, times(1)).execute(any(), any());
+        verify(marketPulseApiService, times(2)).chatWithLlm(any(), any(Duration.class));
+    }
+
+    @Test
+    void relatedRecordsFoundButLowSignalFinalOutputReturnsTruthfulFallback() {
+        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
+        LlmAgentTool tool = mockTool();
+        LlmAgentService service = service(marketPulseApiService, tool);
+        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
+                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"query\":\"notes\"}}"))
+                .thenReturn(new LlmChatResponse("xqzvbnmpqwrtyplkjhgfdsazxcvbnmqwertyplkjhgfdsazxcvbnmqwerty"));
+        when(tool.execute(any(), any())).thenReturn(LlmAgentToolResult.success(
+                "search_records",
+                """
+                        TOOL_RESULT search_records
+                        Query: notes
+                        Related records found: 1
+
+                        Source [5]: Notes | score 0.700 | modified 2026-05-10
+                        Useful context.
+                        """.trim()
+        ));
+
+        LlmChatResponse response = service.chatWithTools(request("notes"), new User());
+
+        assertTrue(response.getReply().contains("I found related Recorder records"));
+    }
+
+    @Test
+    void agentModeAppliesBackendMaxTokenCap() {
+        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
+        LlmAgentTool tool = mockTool();
+        LlmAgentService service = service(marketPulseApiService, tool);
+        LlmChatRequest request = request("hello");
+        request.setMaxTokens(5000);
+        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class))).thenReturn(new LlmChatResponse("{\"final\":\"done\"}"));
+
+        service.chatWithTools(request, new User());
+
+        ArgumentCaptor<LlmChatRequest> captor = ArgumentCaptor.forClass(LlmChatRequest.class);
+        verify(marketPulseApiService).chatWithLlm(captor.capture(), any(Duration.class));
+        assertEquals(BuiltInLlmTokenLimits.RECORD_AGENT_CHAT_MAX_TOKENS, captor.getValue().getMaxTokens());
+    }
+
+    private LlmAgentService service(MarketPulseApiService marketPulseApiService, LlmAgentTool tool) {
+        return new LlmAgentService(
+                marketPulseApiService,
+                new LlmAgentToolRegistry(List.of(tool)),
+                new ObjectMapper()
+        );
     }
 
     private LlmChatRequest request(String content) {
@@ -322,7 +250,10 @@ class LlmAgentServiceTests {
         when(tool.getDescription()).thenReturn("Search records");
         when(tool.getArgumentSchema()).thenReturn("{\"query\":\"string\"}");
         when(tool.execute(any(Map.class), any(User.class)))
-                .thenReturn(LlmAgentToolResult.success("search_records", "TOOL_RESULT search_records\nFound."));
+                .thenReturn(LlmAgentToolResult.success(
+                        "search_records",
+                        "TOOL_RESULT search_records\nQuery: notes\nRelated records found: 1\n\nSource [1]: Notes | score 0.700 | modified 2026-05-01\nFound."
+                ));
         return tool;
     }
 }

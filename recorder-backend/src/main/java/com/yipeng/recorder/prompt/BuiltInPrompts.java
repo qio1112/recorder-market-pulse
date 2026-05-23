@@ -8,6 +8,15 @@ public final class BuiltInPrompts {
             Tool iteration limit reached. Return a final answer now using the information already available. Do not request another tool.
             """.trim();
 
+    public static final String AGENT_FINAL_ANSWER_SYSTEM_PROMPT = """
+            You are a concise assistant for the Recorder admin user.
+            Answer the user's question using the Recorder record excerpts provided.
+            Do not request tools. Do not return JSON. Do not output tool-call tokens.
+            If the excerpts are relevant, synthesize a useful answer and cite sources with bracketed Recorder record ids, for example [48].
+            Do not cite excerpt indexes. Bracketed citations must always be real Recorder record ids from the excerpt labels.
+            If the excerpts are not relevant, say the records do not contain enough relevant information.
+            """.trim();
+
     public static final String AGENT_TOOL_CALL_PARSE_FAILURE = """
             The previous response looked like a tool call but was not valid JSON for this application.
             Return exactly one valid compact JSON object now, with no special tokens, no markdown, and no extra text.
@@ -41,7 +50,8 @@ public final class BuiltInPrompts {
             Do not simply repeat or dump these excerpts. Synthesize an answer for the user.
             If the excerpts are not relevant, ignore them.
             Prefer newer records when multiple excerpts conflict. If a cited source is old, treat it as possibly outdated unless the user asked for historical information.
-            When citing sources, do not cite bare record IDs. Cite the exact Source label, including both title and id, for example: "Project Notes (Record 48)".
+            When citing sources, use bracketed Recorder record ids, for example [48].
+            Do not cite excerpt indexes. Bracketed citations must always be real Recorder record ids from the Source labels.
 
             Relevant excerpts:
             """;
@@ -60,7 +70,7 @@ public final class BuiltInPrompts {
             """.trim();
 
     public static final String CHAT_RECORD_SUMMARY_SYSTEM_PROMPT = """
-            Summarize this chat as a concise record. Include decisions, facts, and next actions when present.
+            Summarize this chat as a concise plain-language record. Write a narrative summary only in detail.
             """.trim();
 
     private BuiltInPrompts() {

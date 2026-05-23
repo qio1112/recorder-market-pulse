@@ -250,7 +250,7 @@ public class MarketPulseApiService {
     }
 
     public LlmChatResponse chatWithLlm(LlmChatRequest request) {
-        return chatWithLlm(request, Duration.ofSeconds(30));
+        return chatWithLlm(request, Duration.ofSeconds(120));
     }
 
     public LlmChatResponse chatWithLlm(LlmChatRequest request, Duration readTimeout) {

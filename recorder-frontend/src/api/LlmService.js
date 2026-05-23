@@ -5,11 +5,10 @@ function toApiMessages(messages) {
 }
 
 export async function sendLlmChat(messages, { includeRelatedRecords = false, chatMode = null } = {}) {
-  const timeout = chatMode === 'RECORD_AGENT' ? 3 * 60 * 1000 : 60 * 1000;
+  const timeout = chatMode === 'RECORD_AGENT' ? 5 * 60 * 1000 : 3 * 60 * 1000;
   const response = await http.post('/llm/chat', {
     messages: toApiMessages(messages),
     temperature: 0.2,
-    max_tokens: 5000,
     includeRelatedRecords,
     chatMode
   }, {

@@ -272,7 +272,8 @@ public class RecordController {
                 sourceRecord.getEmbeddingString(),
                 user,
                 threshold,
-                limit + 1
+                limit + 1,
+                sourceRecord.getId().toString()
         );
 
         List<RelatedRecordResponse> relatedRecords = results.stream()

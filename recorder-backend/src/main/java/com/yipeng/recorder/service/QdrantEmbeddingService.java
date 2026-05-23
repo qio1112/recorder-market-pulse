@@ -116,13 +116,23 @@ public class QdrantEmbeddingService {
             User user,
             Double similarityThreshold,
             Integer limit) {
+        return querySimilarRecords(queryText, user, similarityThreshold, limit, null);
+    }
+
+    public List<QdrantQueryResult> querySimilarRecords(
+            String queryText,
+            User user,
+            Double similarityThreshold,
+            Integer limit,
+            String sourceRecordId) {
         try {
             QdrantQueryRequest body = new QdrantQueryRequest(
                     user.getId() != null ? user.getId().toString() : user.getUsername(),
                     queryText,
                     similarityThreshold,
                     limit != null ? limit : 20,
-                    qdrantCollection
+                    qdrantCollection,
+                    sourceRecordId
             );
             QdrantQueryResponse resp = post("/query", body, QdrantQueryResponse.class);
             return resp != null && resp.getResults() != null ? resp.getResults() : List.of();

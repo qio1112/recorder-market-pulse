@@ -2,6 +2,7 @@ package com.yipeng.recorder.controller;
 
 import com.yipeng.recorder.exception.ForbiddenException;
 import com.yipeng.recorder.model.User;
+import com.yipeng.recorder.prompt.BuiltInLlmTokenLimits;
 import com.yipeng.recorder.request.GenerateRecordLabelsRequest;
 import com.yipeng.recorder.request.LlmChatRequest;
 import com.yipeng.recorder.request.SaveLlmChatRecordRequest;
@@ -49,7 +50,14 @@ public class LlmController {
         LlmChatRequest enrichedRequest = shouldUseRelatedContext(request)
                 ? llmRecordService.enrichChatWithRelatedChunks(request, user)
                 : request;
+        applyChatDefaults(enrichedRequest);
         return ResponseEntity.ok(marketPulseApiService.chatWithLlm(enrichedRequest));
+    }
+
+    private void applyChatDefaults(LlmChatRequest request) {
+        if (request != null) {
+            request.setMaxTokens(BuiltInLlmTokenLimits.CHAT_MAX_TOKENS);
+        }
     }
 
     private String normalizeChatMode(LlmChatRequest request) {

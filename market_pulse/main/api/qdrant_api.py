@@ -56,6 +56,10 @@ class QueryRequest(BaseModel):
     )
     limit: int = Field(default=20, gt=0)
     collection: str = Field(default=qe.COLLECTION)
+    source_record_id: Optional[str] = Field(
+        default=None,
+        description="Record id that initiated a related-record lookup.",
+    )
 
 
 class DeleteRequest(BaseModel):
@@ -109,9 +113,19 @@ def query_records(payload: QueryRequest, deps=Depends(_get_clients)):
             collection=payload.collection,
             similarity_threshold=payload.similarity_threshold,
         )
-        logger.info(f"Queried qdrant with text: {payload.query_text}")
+        if payload.source_record_id:
+            logger.info("Checking related record for record %s", payload.source_record_id)
+        else:
+            logger.info("Queried qdrant records")
     except Exception as exc:  # pragma: no cover - runtime surfacing
-        logger.error(f"Failed to query qdrant with text: {payload.query_text}, error:\n{exc}")
+        if payload.source_record_id:
+            logger.error(
+                "Failed checking related record for record %s, error:\n%s",
+                payload.source_record_id,
+                exc,
+            )
+        else:
+            logger.error("Failed to query qdrant records, error:\n%s", exc)
         raise HTTPException(status_code=500, detail=f"qdrant query failed: {exc}") from exc
 
     # Aggregate chunks per record_id

@@ -2,6 +2,7 @@ package com.yipeng.recorder.controller;
 
 import com.yipeng.recorder.exception.ForbiddenException;
 import com.yipeng.recorder.model.User;
+import com.yipeng.recorder.prompt.BuiltInLlmTokenLimits;
 import com.yipeng.recorder.request.LlmChatMessage;
 import com.yipeng.recorder.request.LlmChatRequest;
 import com.yipeng.recorder.response.LlmChatResponse;
@@ -18,10 +19,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
 
 class LlmControllerTests {
 
@@ -52,6 +55,24 @@ class LlmControllerTests {
         assertEquals("old path", response.getBody().getReply());
         verify(llmRecordService).enrichChatWithRelatedChunks(eq(request), eq(admin));
         verify(llmAgentService, never()).chatWithTools(any(), any());
+    }
+
+    @Test
+    void nonAgentChatAppliesBackendTokenDefault() {
+        UserService userService = mock(UserService.class);
+        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
+        LlmRecordService llmRecordService = mock(LlmRecordService.class);
+        LlmAgentService llmAgentService = mock(LlmAgentService.class);
+        User admin = adminUser();
+        LlmChatRequest request = request("DIRECT");
+        when(userService.findUserFromAuthentication()).thenReturn(admin);
+        when(marketPulseApiService.chatWithLlm(any())).thenReturn(new LlmChatResponse("direct path"));
+
+        newController(userService, marketPulseApiService, llmRecordService, llmAgentService).chat(request);
+
+        ArgumentCaptor<LlmChatRequest> captor = forClass(LlmChatRequest.class);
+        verify(marketPulseApiService).chatWithLlm(captor.capture());
+        assertEquals(BuiltInLlmTokenLimits.CHAT_MAX_TOKENS, captor.getValue().getMaxTokens());
     }
 
     @Test

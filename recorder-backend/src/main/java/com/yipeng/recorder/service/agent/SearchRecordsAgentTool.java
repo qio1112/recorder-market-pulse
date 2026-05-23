@@ -32,7 +32,7 @@ public class SearchRecordsAgentTool implements LlmAgentTool {
         return """
                 {
                   "query": "required string: the semantic record search query",
-                  "limit": "optional integer from 1 to 5; defaults to 5"
+                  "limit": "optional integer from 1 to 10; defaults to 10"
                 }
                 """.trim();
     }
@@ -43,12 +43,15 @@ public class SearchRecordsAgentTool implements LlmAgentTool {
         if (StringUtils.isBlank(query)) {
             return LlmAgentToolResult.error(getName(), "Missing required argument: query");
         }
-        int limit = getInteger(arguments, "limit", RelatedRecordContextService.DEFAULT_CHUNK_LIMIT);
+        int limit = Math.min(
+                getInteger(arguments, "limit", RelatedRecordContextService.AGENT_CHUNK_LIMIT),
+                RelatedRecordContextService.AGENT_CHUNK_LIMIT
+        );
         List<RelatedRecordContextService.RelatedChunkContext> chunks =
-                relatedRecordContextService.getRelatedChunkContexts(query, user, limit);
+                relatedRecordContextService.getAgentRelatedChunkContexts(query, user, limit);
         return LlmAgentToolResult.success(
                 getName(),
-                relatedRecordContextService.buildToolResultContent(query, chunks)
+                relatedRecordContextService.buildCompactToolResultContent(query, chunks)
         );
     }
 

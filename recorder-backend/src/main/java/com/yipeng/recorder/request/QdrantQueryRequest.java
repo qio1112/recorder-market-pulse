@@ -13,6 +13,8 @@ public class QdrantQueryRequest {
     private Integer limit;
     @JsonProperty("collection")
     private String collection;
+    @JsonProperty("source_record_id")
+    private String sourceRecordId;
 
     public QdrantQueryRequest() {
     }
@@ -23,6 +25,11 @@ public class QdrantQueryRequest {
         this.similarityThreshold = similarityThreshold;
         this.limit = limit;
         this.collection = collection;
+    }
+
+    public QdrantQueryRequest(String userId, String queryText, Double similarityThreshold, Integer limit, String collection, String sourceRecordId) {
+        this(userId, queryText, similarityThreshold, limit, collection);
+        this.sourceRecordId = sourceRecordId;
     }
 
     public String getUserId() {
@@ -63,5 +70,13 @@ public class QdrantQueryRequest {
 
     public void setCollection(String collection) {
         this.collection = collection;
+    }
+
+    public String getSourceRecordId() {
+        return sourceRecordId;
+    }
+
+    public void setSourceRecordId(String sourceRecordId) {
+        this.sourceRecordId = sourceRecordId;
     }
 }

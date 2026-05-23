@@ -26,9 +26,12 @@ public class RelatedRecordContextService {
     public static final int DEFAULT_CANDIDATE_LIMIT = 20;
     public static final int DEFAULT_CHUNK_MAX_CHARS = 1200;
     public static final int DEFAULT_CONTEXT_MAX_CHARS = 7000;
+    public static final int AGENT_CHUNK_LIMIT = 10;
+    public static final int AGENT_CHUNK_MAX_CHARS = 850;
+    public static final int AGENT_CONTEXT_MAX_CHARS = 9000;
     public static final double DEFAULT_THRESHOLD = 0.45d;
     private static final double OLD_RECORD_HIGH_SCORE = 0.72d;
-    private static final int RECENT_DAYS = 365;
+    private static final int RECENT_DAYS = 120;
     private static final Pattern HISTORICAL_QUERY_PATTERN = Pattern.compile(
             ".*\\b(older|old|historical|history|archive|archived|past|previous|before|from \\d{4}|in \\d{4}|\\d{4})\\b.*"
     );
@@ -47,17 +50,49 @@ public class RelatedRecordContextService {
     }
 
     public List<RelatedChunkContext> getRelatedChunkContexts(String query, User user, Integer requestedLimit) {
+        return getRelatedChunkContexts(
+                query,
+                user,
+                requestedLimit,
+                DEFAULT_CHUNK_LIMIT,
+                chunkLimit -> Math.max(DEFAULT_CANDIDATE_LIMIT, chunkLimit * 4),
+                Comparator
+                        .comparing(RelatedChunkContext::oldRecord)
+                        .thenComparing((RelatedChunkContext chunk) -> chunk.score() == null ? 0.0d : chunk.score(), Comparator.reverseOrder())
+                        .thenComparing(RelatedChunkContext::lastModifiedAtForSort, Comparator.reverseOrder())
+        );
+    }
+
+    public List<RelatedChunkContext> getAgentRelatedChunkContexts(String query, User user, Integer requestedLimit) {
+        return getRelatedChunkContexts(
+                query,
+                user,
+                requestedLimit,
+                AGENT_CHUNK_LIMIT,
+                chunkLimit -> Math.max(chunkLimit, chunkLimit * 2),
+                Comparator
+                        .comparing(RelatedChunkContext::lastModifiedAtForSort, Comparator.reverseOrder())
+                        .thenComparing((RelatedChunkContext chunk) -> chunk.score() == null ? 0.0d : chunk.score(), Comparator.reverseOrder())
+        );
+    }
+
+    private List<RelatedChunkContext> getRelatedChunkContexts(String query,
+                                                             User user,
+                                                             Integer requestedLimit,
+                                                             int maxChunkLimit,
+                                                             java.util.function.IntUnaryOperator candidateLimitFunction,
+                                                             Comparator<RelatedChunkContext> chunkComparator) {
         if (StringUtils.isBlank(query)) {
             return List.of();
         }
-        int chunkLimit = requestedLimit == null ? DEFAULT_CHUNK_LIMIT : Math.max(1, Math.min(requestedLimit, DEFAULT_CHUNK_LIMIT));
+        int chunkLimit = requestedLimit == null ? maxChunkLimit : Math.max(1, Math.min(requestedLimit, maxChunkLimit));
         List<QdrantQueryResult> results;
         try {
             results = qdrantEmbeddingService.querySimilarRecords(
                     query,
                     user,
                     DEFAULT_THRESHOLD,
-                    Math.max(DEFAULT_CANDIDATE_LIMIT, chunkLimit * 4)
+                    candidateLimitFunction.applyAsInt(chunkLimit)
             );
         } catch (Exception e) {
             logger.warn("Failed to retrieve related record chunks", e);
@@ -92,10 +127,7 @@ public class RelatedRecordContextService {
             }
         }
         return chunks.stream()
-                .sorted(Comparator
-                        .comparing(RelatedChunkContext::oldRecord)
-                        .thenComparing((RelatedChunkContext chunk) -> chunk.score() == null ? 0.0d : chunk.score(), Comparator.reverseOrder())
-                        .thenComparing(RelatedChunkContext::lastModifiedAtForSort, Comparator.reverseOrder()))
+                .sorted(chunkComparator)
                 .limit(chunkLimit)
                 .toList();
     }
@@ -114,9 +146,48 @@ public class RelatedRecordContextService {
             sb.append("No related records were found.");
             return sb.toString();
         }
-        sb.append("Use these bounded excerpts as background. Cite sources by title and record id when used.\n");
+        sb.append("Use these bounded excerpts as background. Cite sources with bracketed Recorder record ids, for example [48].\n");
+        sb.append("Do not cite excerpt indexes. Bracketed citations must be real Recorder record ids from the Source labels.\n");
         appendChunkSections(sb, chunks);
         return sb.toString().trim();
+    }
+
+    public String buildCompactToolResultContent(String query, List<RelatedChunkContext> chunks) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("TOOL_RESULT search_records\n");
+        sb.append("Query: ").append(query == null ? "" : query).append("\n");
+        if (chunks == null || chunks.isEmpty()) {
+            sb.append("No related records were found.");
+            return sb.toString();
+        }
+        sb.append("Related records found: ").append(chunks.size()).append("\n");
+        appendCompactChunkSections(sb, chunks);
+        return sb.toString().trim();
+    }
+
+    private void appendCompactChunkSections(StringBuilder sb, List<RelatedChunkContext> chunks) {
+        if (chunks == null) {
+            return;
+        }
+        for (int i = 0; i < chunks.size(); i++) {
+            RelatedChunkContext chunk = chunks.get(i);
+            String section = """
+
+                    Source [%d]: %s%s | modified %s%s
+                    %s
+                    """.formatted(
+                    chunk.recordId(),
+                    buildRelatedChunkTitleLabel(chunk),
+                    chunk.score() == null ? "" : " | score %.3f".formatted(chunk.score()),
+                    formatContextDate(chunk.modifiedAt()),
+                    chunk.oldRecord() ? " | possibly outdated" : "",
+                    truncate(chunk.text(), AGENT_CHUNK_MAX_CHARS)
+            );
+            if (sb.length() + section.length() > AGENT_CONTEXT_MAX_CHARS) {
+                break;
+            }
+            sb.append(section);
+        }
     }
 
     private void appendChunkSections(StringBuilder sb, List<RelatedChunkContext> chunks) {
@@ -127,14 +198,14 @@ public class RelatedRecordContextService {
             RelatedChunkContext chunk = chunks.get(i);
             String section = """
 
-                    [%d] Source: %s%s
+                    Source [%d]: %s%s
                     Created: %s
                     Modified: %s%s
                     Excerpt:
                     %s
                     """.formatted(
-                    i + 1,
-                    buildRelatedChunkSourceLabel(chunk),
+                    chunk.recordId(),
+                    buildRelatedChunkTitleLabel(chunk),
                     chunk.score() == null ? "" : " | score %.3f".formatted(chunk.score()),
                     formatContextDate(chunk.createdAt()),
                     formatContextDate(chunk.modifiedAt()),
@@ -178,9 +249,8 @@ public class RelatedRecordContextService {
                 || (record.getCreatedBy() != null && record.getCreatedBy().getId().equals(user.getId())));
     }
 
-    private String buildRelatedChunkSourceLabel(RelatedChunkContext chunk) {
-        String title = StringUtils.defaultIfBlank(chunk.title(), "Untitled Record");
-        return "%s (Record %d)".formatted(title, chunk.recordId());
+    private String buildRelatedChunkTitleLabel(RelatedChunkContext chunk) {
+        return StringUtils.defaultIfBlank(chunk.title(), "Untitled Record");
     }
 
     private String formatContextDate(ZonedDateTime value) {
