@@ -104,8 +104,8 @@ Base path: `/api/llm`.
 
 - `POST /chat`
   - Input: `LlmChatRequest { messages, temperature?, max_tokens?, chatMode?, includeRelatedRecords? }`.
-  - Output: `LlmChatResponse { reply }`.
-  - Flow: admin-only. Default/legacy mode eagerly enriches the chat with related Qdrant chunks before proxying to Market Pulse `/llm/chat`. `chatMode=RECORD_AGENT` uses the generic agent loop with registered tools; v1 enables only `search_records`.
+  - Output: `LlmChatResponse { reply, toolUsages? }`.
+  - Flow: admin-only. Default/legacy mode eagerly enriches the chat with related Qdrant chunks before proxying to Market Pulse `/llm/chat`. `chatMode=RECORD_AGENT` uses the bounded records-agent path; v1 enables only `search_records`. `toolUsages` is optional UI metadata such as searched Qdrant keywords.
 - `POST /record-labels`
   - Input: `GenerateRecordLabelsRequest { title, content, maxLabels }`.
   - Output: `GenerateRecordLabelsResponse { labels }`.
@@ -244,9 +244,9 @@ Gateway to Market Pulse:
 - `getStockDailyHistory(symbols)`: calls `/stock-daily-history` and converts JSON rows to `StockDailyHistory`.
 - `getTrackedSymbols(forOption)`: calls `/stock-symbols` or `/option-symbols`.
 - `getOptionSymbols()`, `getOptionExpiryDates(symbol)`, `getOptionHistory(symbol, expiry, optionType)`, `combineExpiredOptionParquetFiles()`: option API proxy methods.
-- `getTrackedStockNewsSummary()`: calls Market Pulse `/news/stock-summary` with a long read timeout.
+- `getTrackedStockNewsSummary()`: calls Market Pulse `/news/stock-summary` with a long read timeout, passing `BuiltInPrompts.MARKET_NEWS_SUMMARY_SYSTEM_PROMPT` and `BuiltInLlmTokenLimits.MARKET_NEWS_SUMMARY_MAX_TOKENS`.
 - `chatWithLlm(request)`: calls Market Pulse `/llm/chat`.
-  - Uses a 30-second read timeout because local model responses can exceed the default 10-second `RestTemplate` timeout.
+  - Uses a 120-second read timeout because local model responses can exceed the default `RestTemplate` timeout.
 - `chatWithLlm(request, readTimeout)`: timeout override used by the agent loop.
 - `formatSymbolList(symbols)`: trims, uppercases, removes blanks and duplicates.
 
@@ -275,12 +275,19 @@ Record-oriented LLM helpers:
 
 ### `LlmAgentService` And Tools
 
-- `LlmAgentService`: generic plain-text tool loop over Market Pulse `/llm/chat`; no native OpenAI tool-call API in v1.
+- `LlmAgentService`: bounded plain-text records-agent flow over Market Pulse `/llm/chat`; no native OpenAI tool-call API in v1.
+  - Each user request has at most one `search_records` tool execution and at most one final synthesis LLM call.
+  - If no usable chunks are returned, the backend immediately returns the no-records message without a second LLM call.
+  - If records are found, the final answer prompt is final-answer-only. Empty, malformed, tool-requesting, or random-looking output falls back to "records found but model failed", never "no related records".
+  - Agent chat max tokens are forced server-side through `BuiltInLlmTokenLimits.RECORD_AGENT_CHAT_MAX_TOKENS`.
 - `LlmAgentTool`: common interface for tool name, description, argument instructions, and execution.
 - `LlmAgentToolRegistry`: registered-tool lookup and unknown-tool rejection.
 - `LlmAgentToolCall` / `LlmAgentToolResult`: normalized tool request/result objects.
-- `SearchRecordsAgentTool`: first concrete tool. It reuses `RelatedRecordContextService` and returns bounded record chunks with source title/id, created/modified dates, score, and `possibly outdated` markers.
-- `BuiltInPrompts`: shared prompt text. `BuiltInLlmTokenLimits`: shared Java-side LLM output token budgets.
+- `SearchRecordsAgentTool`: first concrete tool. It accepts `queries` with 1-5 search phrases, or legacy `query` fallback. Legacy single-query strings are split on common separators such as comma, `and`, `or`, `vs`, slash, and semicolon.
+  - Runs one Qdrant search per query, merges chunks round-robin, deduplicates by record id and chunk text, and returns up to 10 total chunks.
+  - Reuses `RelatedRecordContextService` and returns compact chunks with `Source [recordId]: title`, created/modified dates, score, and `possibly outdated` markers.
+  - Agent citations should use record ids directly, for example `[12]`, not excerpt indexes like `[1, 2]`.
+- `BuiltInPrompts`: all built-in prompt text. `BuiltInLlmTokenLimits`: all Java-side LLM output token budgets.
 
 ### `QdrantEmbeddingService`
 
@@ -291,6 +298,7 @@ Gateway to Market Pulse `/qdrant` endpoints:
 - `deleteRecordIfExistsAsync(record)`: checks vector existence and deletes if present.
 - `deleteRecordIfExistsSync(recordId)`: synchronous variant used by durable Qdrant delete jobs.
 - `querySimilarRecords(queryText, user, threshold, limit)`: returns `QdrantQueryResult` values from vector search.
+  - Overload accepts `sourceRecordId` for record-detail related lookup so Market Pulse can log `Checking related record for record <id>` without logging record content or query text.
   - `QdrantQueryResult.chunks` contains matched chunk text from Qdrant payloads. Related-record UI and LLM chat context should use chunks rather than loading full record content when possible.
 - `recordExists(recordId)`: checks vector presence.
 - `listRecordIds()`: returns distinct record ids currently present in Qdrant, used by consistency check/datafix jobs.
@@ -315,7 +323,7 @@ Gateway to Market Pulse `/qdrant` endpoints:
     - `0 0 21 * * MON-FRI`
   - When a scheduled stock update runs multiple jobs together, such as option data plus daily history at 16:30/21:00, it sends one combined email with all job names/results.
   - Daily weekday market-news summary job runs at `0 30 21 * * MON-FRI`.
-  - It calls Market Pulse news summaries for default tracked news symbols, sorts symbols alphabetically, and creates one public record per 5 symbols.
+  - It calls Market Pulse news summaries for default tracked news symbols, sorts symbols alphabetically, and creates public records in chunks controlled by `MARKET_NEWS_SUMMARY_SYMBOLS_PER_RECORD`.
   - Each news record has labels `MARKET_NEWS_SUMMARY`, `MARKET_PULSE`, current date, and the chunk’s uppercase symbols.
   - Manual admin-tool runs use the same chunking/labeling behavior but include a timestamp in the title and run asynchronously.
 - `StartupRunner`: seeds roles/labels/admin user and can synchronize existing records into Qdrant.
@@ -356,7 +364,7 @@ Admin API behavior:
 - Only admin users can view/edit job configs, trigger jobs, or view execution history.
 - Admin users can edit and trigger built-in jobs. They can also create/delete custom schedules for registered handler types; built-in jobs are reset from code on startup and cannot be deleted.
 - Manual triggers run with the saved job config; parameter overrides are deferred.
-- Retry is framework-level and records retry status in `job_execution`. Current retry attempts run immediately; delayed retry scheduling is tracked in the follow-up plan.
+- Retry is framework-level and records retry status in `job_execution`. Retry attempts are inserted with `QUEUED` status before the previous attempt is marked `RETRYING`; delayed retry scheduling is tracked in the follow-up plan.
 - Failure emails are sent only after all retry attempts are exhausted.
 - Stale `QUEUED` or `RUNNING` executions are marked `TIMEOUT` when they remain active longer than the job config's `max_runtime_seconds` value. This runs on every scheduler poll and before a new execution is queued for the same job key, so interrupted async tasks or container rebuilds do not block future runs forever.
 - Stock data freshness, option data freshness, and Qdrant consistency checks are built-in daily cron jobs scheduled for `22:00` America/New_York by default. Qdrant consistency compares backend record ids with Qdrant ids and reports both missing and stale vectors. `QDRANT_DATAFIX` is a manual job under Other Jobs that upserts missing vectors and deletes stale vectors. Job execution cleanup runs daily at `23:00`.

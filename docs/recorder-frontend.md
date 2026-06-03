@@ -66,9 +66,10 @@
   - `getOptionExpiries(symbol) -> string[]`.
   - `getOptionHistory(symbol, expiry, optionType) -> OptionHistoryResponse`.
 - `LlmService.js`
-  - `sendLlmChat(messages, { includeRelatedRecords=false, chatMode=null } = {}) -> { reply }`.
+  - `sendLlmChat(messages, { includeRelatedRecords=false, chatMode=null } = {}) -> { reply, toolUsages? }`.
   - Sends only API-safe chat fields `{ role, content }`; UI-only fields such as timestamps are stripped before the request.
-  - Sends `max_tokens: 5000`; uses a longer timeout for `RECORD_AGENT` mode than normal chat.
+  - Does not send `max_tokens`; backend services own all chat output token budgets.
+  - Uses a longer browser request timeout for `RECORD_AGENT` mode than normal chat.
   - `generateRecordLabels({ title, content, maxLabels }) -> { labels }`.
   - `saveLlmChatAsRecord(messages, isPublic=false) -> { status, message }`.
   - Uses longer per-call timeouts for label generation/chat-record job start than the shared Axios default.
@@ -207,6 +208,7 @@ Actions:
   - Uses a viewport-height panel so the conversation fills most of the screen and scrolls internally.
   - Stores visible chat messages in `localStorage` under `recorder.llmChat.messages`.
   - Stores the record-agent checkbox in `localStorage` so test mode persists across visits.
+  - Stores the show-tool-info checkbox in `localStorage`; when enabled, agent replies show metadata such as `Used qdrant tool to search ['key one', 'key two']` above the answer.
   - Chat messages include `createdAt` timestamps for display. Older stored messages without timestamps still load.
   - Transient LLM failures/timeouts keep the visible and stored chat history; only auth failures clear history.
   - Real user chat can use either `RELATED_CONTEXT` eager Qdrant enrichment or `RECORD_AGENT` dynamic record-tool mode. Connection checks stay plain and do not include related records.

@@ -139,10 +139,12 @@ Outputs:
 2. Frontend posts API-safe messages plus `chatMode` to `POST /api/llm/chat`.
 3. Backend validates admin access and routes by mode:
    - `RELATED_CONTEXT`: old eager Qdrant enrichment through `LlmRecordService.enrichChatWithRelatedChunks`, then one Market Pulse `/llm/chat` call.
-   - `RECORD_AGENT`: generic `LlmAgentService` loop with registered tools. V1 has only `search_records`.
+   - `RECORD_AGENT`: bounded `LlmAgentService` flow with registered tools. V1 has only `search_records`.
 4. Both paths use `RelatedRecordContextService` for Qdrant record retrieval rules: DB visibility recheck, recent-record preference, historical-query allowance, high-score old-record allowance, and bounded chunk output.
-5. Agent mode builds a system prompt from registered tool metadata. The model can answer directly or return JSON such as `{"tool":"search_records","arguments":{"query":"NVDA","limit":5}}`.
-6. Backend executes at most 3 tool iterations, returns controlled tool errors for unknown/failing tools, strips invalid tool-call wrappers, and treats normal prose as a final answer.
+5. Agent mode builds a system prompt from registered tool metadata. The model can answer directly or request `search_records` with either `queries: [...]` or legacy `query`.
+6. Backend executes at most one records search per user message. The tool can search 1-5 Qdrant keywords, merge/dedupe results, and return up to 10 compact chunks.
+7. If no chunks are found, backend immediately returns the no-records message. If chunks are found, backend makes one final-answer-only LLM synthesis call.
+8. If the final synthesis is blank, malformed, random-looking, or asks for another tool, backend returns the "records found but model failed" fallback instead of claiming no related records.
 
 Inputs:
 
@@ -151,7 +153,7 @@ Inputs:
 
 Outputs:
 
-- `{ reply }` from Market Pulse/agent orchestration. Chat history stays in the browser if a transient LLM failure occurs.
+- `{ reply, toolUsages? }` from Market Pulse/agent orchestration. `toolUsages` is optional UI metadata such as searched Qdrant keywords. Chat history stays in the browser if a transient LLM failure occurs.
 
 ## LLM Label Generation Flow
 
@@ -283,8 +285,9 @@ Outputs:
 6. Backend creates a `job_execution` row with `QUEUED`.
 7. `JobExecutionService` marks the row `RUNNING`, dispatches the matching `JobHandler`, then records the final status and structured details.
 8. Stale `QUEUED`/`RUNNING` rows older than `max_runtime_seconds` are marked `TIMEOUT` during polling so future runs are not blocked.
-9. Failure email is sent after retries are exhausted, except for status-check jobs.
-10. Admin views final status/details from job history in the dashboard.
+9. When retry is enabled, retry executions are inserted as `QUEUED` before the failed attempt is marked `RETRYING`.
+10. Failure email is sent after retries are exhausted, except for status-check jobs.
+11. Admin views final status/details from job history in the dashboard.
 
 Notes:
 
@@ -327,12 +330,12 @@ Outputs:
 
 1. `BuiltInJobSeeder` seeds the `MARKET_NEWS_SUMMARY_RECORD` job to run at `0 30 21 * * MON-FRI`.
 2. Manual admin trigger on `/tools/admin` calls `POST /api/admin-tools/jobs/configs/{id}/trigger` for the `MARKET_NEWS_SUMMARY_RECORD` config.
-3. Backend calls `MarketPulseApiService.getTrackedStockNewsSummary()`.
+3. Backend calls `MarketPulseApiService.getTrackedStockNewsSummary()`, passing the backend-owned stock-news prompt and `BuiltInLlmTokenLimits.MARKET_NEWS_SUMMARY_MAX_TOKENS`.
 4. Market Pulse `/news/stock-summary` reads tracked news symbols from `market_pulse/resources/symbols/news_symbols.txt` when no symbols are provided.
-5. Market Pulse calls `yf.Ticker(symbol).news`, normalizes articles, bounds article text with `NEWS_LLM_*` env settings, and uses the configured LLM to produce one paragraph per symbol.
-6. Market Pulse cleans model output by removing reasoning blocks, markdown fences, and summary prefixes. If the LLM fails, returns endpoint-error content, or produces no usable summary, Market Pulse falls back to article title/summary text.
+5. Market Pulse calls `yf.Ticker(symbol).news`, normalizes articles, bounds article text with `NEWS_LLM_*` env settings, and passes the backend prompt/token value through to the configured LLM.
+6. Market Pulse cleans model output by removing reasoning blocks, markdown fences, summary prefixes, ellipses, and unfinished trailing fragments. If the LLM fails, returns endpoint-error content, or produces no complete usable sentence, Market Pulse falls back to article title/summary text.
 7. Backend sorts all symbol summaries alphabetically.
-8. Backend creates one public record per 5 symbols to avoid overly long records.
+8. Backend creates public records in chunks controlled by `CronService.MARKET_NEWS_SUMMARY_SYMBOLS_PER_RECORD` to avoid overly long records.
 9. Each record title includes the date or manual timestamp plus the chunk’s symbols.
 10. Each record gets labels `MARKET_NEWS_SUMMARY`, `MARKET_PULSE`, current date, and uppercase symbol labels.
 11. Each created record queues a durable `QDRANT_RECORD_UPSERT` execution.
@@ -343,7 +346,7 @@ Inputs:
 
 Outputs:
 
-- Public market-news summary records grouped by 5 symbols.
+- Public market-news summary records grouped by the backend chunk-size constant.
 
 ## Option History Flow
 

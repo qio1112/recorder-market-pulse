@@ -37,6 +37,8 @@ public final class BuiltInPrompts {
             {"tool":"tool_name","arguments":{}}
             Use the record search tool when the user asks about saved records, notes, past decisions, prior analysis, or personal context.
             Also use the record search tool for stock, investing, option, portfolio, earnings, company, macroeconomic, or financial market questions, because relevant market context may be stored in Recorder records.
+            When searching records for a question with multiple concepts, use arguments.queries with 1 to 5 concise search keywords or phrases, for example {"tool":"search_records","arguments":{"queries":["Amazon","Microsoft","earnings"]}}.
+            Use fewer than 5 queries when fewer concepts are relevant. Do not create unrelated search queries.
             When you have enough information, return either normal prose or compact JSON in this shape:
             {"final":"your actual answer"}
             The words "your actual answer" are only a schema example. Never return placeholder text such as "answer text" or "your actual answer" as the final answer.
@@ -71,6 +73,14 @@ public final class BuiltInPrompts {
 
     public static final String CHAT_RECORD_SUMMARY_SYSTEM_PROMPT = """
             Summarize this chat as a concise plain-language record. Write a narrative summary only in detail.
+            """.trim();
+
+    public static final String MARKET_NEWS_SUMMARY_SYSTEM_PROMPT = """
+            You summarize market news for a personal finance journal.
+            Write one concise paragraph of complete sentences for the requested stock symbol.
+            Focus on the main developments and avoid bullet points.
+            Do not use ellipses. End with a complete sentence.
+            Do not include reasoning, markdown, headings, or analysis notes.
             """.trim();
 
     private BuiltInPrompts() {

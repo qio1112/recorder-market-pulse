@@ -18,6 +18,8 @@ from main.utils.path_utils import get_resources_path
 logger = setup_logging("stock_news")
 
 THINK_BLOCK_PATTERN = re.compile(r"(?is)<think>.*?</think>")
+ELLIPSIS_PATTERN = re.compile(r"\s*(?:\.{3,}|…+)\s*")
+COMPLETE_SENTENCE_END_PATTERN = re.compile(r"[.!?][)\"']?$")
 DEFAULT_MAX_LLM_NEWS_ARTICLES = 5
 DEFAULT_MAX_NEWS_TITLE_CHARS = 240
 DEFAULT_MAX_NEWS_SUMMARY_CHARS = 1800
@@ -76,21 +78,21 @@ def get_symbol_news(symbol: str, max_news: int = 5) -> list[dict[str, Any]]:
     return [item for item in normalized if item["title"] or item["summary"]]
 
 
-def summarize_symbol_news(symbol: str, articles: list[dict[str, Any]]) -> str:
+def summarize_symbol_news(
+    symbol: str,
+    articles: list[dict[str, Any]],
+    *,
+    summary_prompt: str | None = None,
+    max_tokens: int | None = None,
+) -> str:
     if not articles:
         return "No recent news found."
     article_text = build_llm_article_text(articles)
-    prompt = (
-        "You summarize market news for a personal finance journal. "
-        "Write exactly one concise paragraph for the requested stock symbol. "
-        "Focus on the main developments and avoid bullet points. "
-        "Do not include reasoning, markdown, headings, or analysis notes."
-    )
     try:
         summary = summarize_text(
             f"Symbol: {symbol}\n\n{article_text}",
-            prompt=prompt,
-            max_tokens=700,
+            prompt=summary_prompt,
+            max_tokens=max_tokens,
             temperature=0.1,
         )
     except Exception as exc:
@@ -112,9 +114,9 @@ def build_llm_article_text(articles: list[dict[str, Any]]) -> str:
     max_prompt_chars = get_int_env("NEWS_LLM_MAX_PROMPT_CHARS", DEFAULT_MAX_NEWS_PROMPT_CHARS)
     chunks = []
     for article in articles[:max_articles]:
-        title = truncate_text(str(article.get("title") or ""), max_title_chars)
-        publisher = truncate_text(str(article.get("publisher") or ""), 80)
-        summary = truncate_text(str(article.get("summary") or ""), max_summary_chars)
+        title = truncate_text(sanitize_summary_text(str(article.get("title") or "")), max_title_chars)
+        publisher = truncate_text(sanitize_summary_text(str(article.get("publisher") or "")), 80)
+        summary = truncate_text(sanitize_summary_text(str(article.get("summary") or "")), max_summary_chars)
         chunk = f"Title: {title}\nPublisher: {publisher}\nSummary: {summary}".strip()
         if chunk:
             chunks.append(chunk)
@@ -139,6 +141,11 @@ def truncate_text(value: str, max_chars: int) -> str:
     return truncated
 
 
+def sanitize_summary_text(value: str) -> str:
+    cleaned = ELLIPSIS_PATTERN.sub(" ", str(value or ""))
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
 def clean_llm_summary(summary: str) -> str:
     cleaned = THINK_BLOCK_PATTERN.sub(" ", str(summary or ""))
     cleaned = (
@@ -156,7 +163,21 @@ def clean_llm_summary(summary: str) -> str:
             normalized = re.sub(r"(?i)^(summary|final answer|answer|analysis|reasoning)\s*[:\-]\s*", "", normalized).strip()
         if normalized:
             lines.append(normalized.lstrip("-* ").strip())
-    return " ".join(lines).strip()
+    return complete_summary_or_blank(sanitize_summary_text(" ".join(lines)))
+
+
+def complete_summary_or_blank(summary: str) -> str:
+    cleaned = sanitize_summary_text(summary)
+    if not cleaned:
+        return ""
+    if COMPLETE_SENTENCE_END_PATTERN.search(cleaned):
+        return cleaned
+    sentence_end = max(cleaned.rfind("."), cleaned.rfind("!"), cleaned.rfind("?"))
+    if sentence_end >= max(40, len(cleaned) // 3):
+        return cleaned[:sentence_end + 1].strip()
+    if len(cleaned) <= 180:
+        return cleaned + "."
+    return ""
 
 
 def fallback_article_summary(symbol: str, articles: list[dict[str, Any]]) -> str:
@@ -168,15 +189,25 @@ def fallback_article_summary(symbol: str, articles: list[dict[str, Any]]) -> str
         if title and summary and title not in summary:
             text = f"{title}: {summary}"
         if text:
-            snippets.append(text)
+            snippets.append(sanitize_summary_text(text))
     if not snippets:
         return f"No usable news text found for {symbol}."
-    return f"{symbol}: " + " ".join(snippets)
+    return complete_summary_or_blank(f"{symbol}: " + " ".join(snippets)) or f"No complete news summary generated for {symbol}."
 
 
-def summarize_symbol_from_yfinance(symbol: str, max_news_per_symbol: int) -> dict[str, Any]:
+def summarize_symbol_from_yfinance(
+    symbol: str,
+    max_news_per_symbol: int,
+    summary_prompt: str | None = None,
+    max_tokens: int | None = None,
+) -> dict[str, Any]:
     articles = get_symbol_news(symbol, max_news=max_news_per_symbol)
-    summary = summarize_symbol_news(symbol, articles)
+    summary = summarize_symbol_news(
+        symbol,
+        articles,
+        summary_prompt=summary_prompt,
+        max_tokens=max_tokens,
+    )
     return {
         "symbol": symbol,
         "summary": summary,
@@ -194,6 +225,8 @@ def get_stock_news_summaries(
     *,
     max_news_per_symbol: int = 5,
     max_workers: int = 4,
+    summary_prompt: str | None = None,
+    max_tokens: int | None = None,
 ) -> dict[str, Any]:
     selected_symbols = symbols or get_default_news_symbols_from_file()
     cleaned_symbols = []
@@ -212,7 +245,13 @@ def get_stock_news_summaries(
     worker_count = max(1, min(max_workers, len(cleaned_symbols)))
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
         futures = {
-            executor.submit(summarize_symbol_from_yfinance, symbol, max_news_per_symbol): (index, symbol)
+            executor.submit(
+                summarize_symbol_from_yfinance,
+                symbol,
+                max_news_per_symbol,
+                summary_prompt,
+                max_tokens,
+            ): (index, symbol)
             for index, symbol in enumerate(cleaned_symbols)
         }
         for future in as_completed(futures):

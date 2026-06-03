@@ -30,7 +30,7 @@ Important behavior:
 - Admin users can edit/enable/disable and manually trigger existing jobs. The UI currently does not expose adding new schedules.
 - Manual triggers use saved job config only; trigger-time parameter overrides are intentionally deferred.
 - `QUEUED` or `RUNNING` executions older than `max_runtime_seconds` are marked `TIMEOUT` so container rebuilds or interrupted async tasks do not block future runs.
-- Retry is framework-level. Retry status is stored in `job_execution`; failure email is sent only after retry attempts are exhausted.
+- Retry is framework-level. Retry status is stored in `job_execution`; retry rows are inserted with `QUEUED` before the failed attempt is marked `RETRYING`. Failure email is sent only after retry attempts are exhausted.
 - Status-check jobs do not send failure emails. They fail visibly in the dashboard only.
 - Job history retention is 30 days. `JOB_EXECUTION_CLEANUP` runs at 23:00 America/New_York.
 
@@ -48,6 +48,11 @@ Key built-in job defaults:
 - `QDRANT_DATAFIX`: manual Other Jobs entry for repairing Qdrant drift.
 - `JOB_EXECUTION_CLEANUP`: daily 23:00.
 - `STOCK_OPTION_DATA_UPDATE`: label is "Update day time option data".
+
+Market-news record creation:
+
+- `MARKET_NEWS_SUMMARY_RECORD` uses `CronService.MARKET_NEWS_SUMMARY_SYMBOLS_PER_RECORD` to decide how many symbol summaries go into each public record.
+- Backend owns the stock-news summary prompt and max output token budget through `BuiltInPrompts` and `BuiltInLlmTokenLimits`; Market Pulse only receives and forwards those values.
 
 ## Record Alert Scheduler
 

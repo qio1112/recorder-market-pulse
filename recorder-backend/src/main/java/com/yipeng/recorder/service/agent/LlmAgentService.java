@@ -17,10 +17,12 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 @Service
@@ -35,6 +37,7 @@ public class LlmAgentService {
     private static final Duration AGENT_LLM_READ_TIMEOUT = Duration.ofSeconds(240);
     private static final Pattern TOOL_CALL_TOKEN_PATTERN = Pattern.compile("(?i)<\\|?/?tool_calls?\\|?>");
     private static final Pattern HAS_WORD_PATTERN = Pattern.compile("(?is).*\\b[a-z]{2,}\\b.*");
+    private static final Pattern MULTI_CONCEPT_SPLIT_PATTERN = Pattern.compile("(?i)\\s+(and|or|vs|versus)\\s+|[,;/]+");
 
     private final MarketPulseApiService marketPulseApiService;
     private final LlmAgentToolRegistry toolRegistry;
@@ -69,6 +72,7 @@ public class LlmAgentService {
         }
 
         LlmAgentToolResult toolResult = executeTool(toolCall, user);
+        List<String> toolUsages = buildToolUsages(toolCall);
         String toolContent = toolResult.renderForModel();
         boolean recordsFound = toolResult.isSuccess() && hasRelatedRecords(toolContent);
         int contextChars = toolContent.length();
@@ -80,12 +84,12 @@ public class LlmAgentService {
         if (!toolResult.isSuccess()) {
             logger.info("LLM record agent returning without final synthesis: query={}, fallbackReason=tool_error",
                     getToolQuery(toolCall));
-            return new LlmChatResponse(RECORD_SEARCH_FAILED_MESSAGE);
+            return new LlmChatResponse(RECORD_SEARCH_FAILED_MESSAGE, toolUsages);
         }
         if (!recordsFound) {
             logger.info("LLM record agent returning without final synthesis: query={}, fallbackReason=no_records",
                     getToolQuery(toolCall));
-            return new LlmChatResponse(NO_RECORDS_FOUND_MESSAGE);
+            return new LlmChatResponse(NO_RECORDS_FOUND_MESSAGE, toolUsages);
         }
 
         LlmChatRequest finalRequest = buildFinalAnswerRequest(request, toolContent);
@@ -97,14 +101,14 @@ public class LlmAgentService {
                     getToolQuery(toolCall),
                     contextChars,
                     finalAnswer.length());
-            return new LlmChatResponse(finalAnswer);
+            return new LlmChatResponse(finalAnswer, toolUsages);
         }
 
         logger.info("LLM record agent final synthesis fallback: query={}, contextChars={}, finalChars={}, fallbackReason=unusable_final_output",
                 getToolQuery(toolCall),
                 contextChars,
                 finalReply.length());
-        return new LlmChatResponse(RECORDS_FOUND_BUT_NO_ANSWER_FALLBACK);
+        return new LlmChatResponse(RECORDS_FOUND_BUT_NO_ANSWER_FALLBACK, toolUsages);
     }
 
     private LlmAgentToolResult executeTool(LlmAgentToolCall toolCall, User user) {
@@ -318,8 +322,53 @@ public class LlmAgentService {
     }
 
     private String getToolQuery(LlmAgentToolCall toolCall) {
-        Object query = toolCall == null || toolCall.getArguments() == null ? null : toolCall.getArguments().get("query");
-        return query instanceof String text ? text : "";
+        List<String> queries = getToolQueries(toolCall);
+        if (!queries.isEmpty()) {
+            return String.join("; ", queries);
+        }
+        return "";
+    }
+
+    private List<String> getToolQueries(LlmAgentToolCall toolCall) {
+        if (toolCall == null || toolCall.getArguments() == null) {
+            return List.of();
+        }
+        Set<String> values = new LinkedHashSet<>();
+        Object queries = toolCall.getArguments().get("queries");
+        if (queries instanceof Iterable<?> iterable) {
+            for (Object value : iterable) {
+                if (value instanceof String text && StringUtils.isNotBlank(text)) {
+                    values.add(text.trim());
+                }
+            }
+            if (!values.isEmpty()) {
+                return new ArrayList<>(values);
+            }
+        }
+        Object query = toolCall.getArguments().get("query");
+        if (query instanceof String text && StringUtils.isNotBlank(text)) {
+            String[] parts = MULTI_CONCEPT_SPLIT_PATTERN.split(text.trim());
+            for (String part : parts) {
+                if (StringUtils.isNotBlank(part)) {
+                    values.add(part.trim());
+                }
+            }
+        }
+        return new ArrayList<>(values);
+    }
+
+    private List<String> buildToolUsages(LlmAgentToolCall toolCall) {
+        if (toolCall == null || !"search_records".equals(toolCall.getToolName())) {
+            return List.of();
+        }
+        List<String> queries = getToolQueries(toolCall);
+        if (queries.isEmpty()) {
+            return List.of("Used qdrant tool to search []");
+        }
+        String quotedQueries = queries.stream()
+                .map(query -> "'" + query.replace("'", "\\'") + "'")
+                .collect(java.util.stream.Collectors.joining(", "));
+        return List.of("Used qdrant tool to search [" + quotedQueries + "]");
     }
 
     private boolean isLowSignalOutput(String value) {

@@ -223,6 +223,7 @@ public class JobExecutionService {
         execution.setJobKey(config.getJobKey());
         execution.setJobType(config.getJobType());
         execution.setTriggerType(triggerType);
+        execution.setStatus(JobStatus.QUEUED);
         execution.setAttempt(1);
         execution.setMaxAttempts(Math.max(1, config.getRetryCount() + 1));
         execution.setParametersJson(parametersJson);
@@ -274,12 +275,6 @@ public class JobExecutionService {
         }
 
         if (execution.getAttempt() < execution.getMaxAttempts()) {
-            execution.setStatus(JobStatus.RETRYING);
-            execution.setRetryStatusSummary("Attempt %d of %d failed. Retrying after configured delay.".formatted(
-                    execution.getAttempt(),
-                    execution.getMaxAttempts()
-            ));
-            jobExecutionRepository.save(execution);
             JobExecution retry = createBaseExecution(execution.getJobConfig(), JobTriggerType.RETRY);
             retry.setAttempt(execution.getAttempt() + 1);
             retry.setMaxAttempts(execution.getMaxAttempts());
@@ -290,6 +285,13 @@ public class JobExecutionService {
                     execution.getId()
             ));
             JobExecution savedRetry = jobExecutionRepository.save(retry);
+            execution.setStatus(JobStatus.RETRYING);
+            execution.setRetryStatusSummary("Attempt %d of %d failed. Retrying with execution %d.".formatted(
+                    execution.getAttempt(),
+                    execution.getMaxAttempts(),
+                    savedRetry.getId()
+            ));
+            jobExecutionRepository.save(execution);
             return runExecution(savedRetry.getId(), triggeredBy);
         }
 

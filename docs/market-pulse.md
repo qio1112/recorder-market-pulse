@@ -110,9 +110,10 @@ Endpoints:
   - Output: point ids.
   - Flow: chunks record text, embeds chunks, upserts vectors with ACL payload.
 - `POST /query`
-  - Input: `QueryRequest { user_id, query_text, similarity_threshold, limit, collection }`.
+  - Input: `QueryRequest { user_id, query_text, similarity_threshold, limit, collection, source_record_id? }`.
   - Output: search results grouped by record id with `best_score` and `chunks`.
   - Flow: embeds query, searches Qdrant with ACL filter for public records or matching user id, then aggregates chunk hits by `record_id`. The returned `chunks` are the stored chunk texts from Qdrant payloads, not full record bodies.
+  - Logging: does not log query text or record content. Record-detail related lookup can pass `source_record_id`, which logs only `Checking related record for record <id>`.
 - `POST /delete`
   - Input: `DeleteRequest { record_id, collection }`.
   - Output: deletion status.
@@ -267,9 +268,10 @@ Base router prefix: `/news`.
 Endpoints:
 
 - `POST /stock-summary`
-  - Input: `{ symbols?, max_news_per_symbol?, max_workers? }`.
+  - Input: `{ symbols?, max_news_per_symbol?, max_workers?, summary_prompt?, max_tokens? }`.
   - Output: `{ generated_at, summaries: [{ symbol, summary, article_count, articles }] }`.
   - Flow: reads default news symbols from `resources/symbols/news_symbols.txt` when symbols are omitted, fetches `yf.Ticker(symbol).news`, normalizes articles, and uses the LLM client to create one paragraph per symbol.
+  - Prompt/token ownership: Recorder backend owns the stock-news prompt and output token budget through `BuiltInPrompts` and `BuiltInLlmTokenLimits`; Market Pulse only passes `summary_prompt` and `max_tokens` through to the LLM client.
   - Concurrency: symbols are processed with a bounded `ThreadPoolExecutor` so yfinance fetches and LLM summaries can run in parallel.
 
 ## LLM Client
@@ -279,7 +281,7 @@ Endpoints:
 Responsibilities:
 
 - Loads config from `resources/config/llm.yaml`.
-- Supports env overrides such as `LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`, `LLM_CHAT_COMPLETION_PATH`, `LLM_API_KEY`, `LLM_API_KEY_ENV`, `LLM_TIMEOUT_SECONDS`, `LLM_TEMPERATURE`, and `LLM_MAX_TOKENS`.
+- Supports env overrides such as `LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`, `LLM_CHAT_COMPLETION_PATH`, `LLM_API_KEY`, `LLM_API_KEY_ENV`, `LLM_TIMEOUT_SECONDS`, and `LLM_TEMPERATURE`.
 - Supports fallback env overrides with `LLM_FALLBACK_*` names. `LLM_FALLBACK_API_KEY_ENV` must be an environment variable name such as `LLM_API_KEY`, not the literal key value.
 - Defaults to LM Studio/OpenAI-compatible local API:
   - provider: `lmstudio`
@@ -293,12 +295,13 @@ Responsibilities:
 - Resolves placeholder model `local-model` by calling `/models` and using the first model id.
 - Treats known endpoint-error text such as `Unexpected endpoint or method ... Returning 200 anyway` as an LLM failure even when the HTTP status is 200.
 - HTTP errors include a short response-body excerpt in `LlmClientError` to help debug model/server-specific 400 responses.
+- Sends `max_tokens` only when the caller passes an explicit value. Backend services should own production output budgets instead of relying on Market Pulse defaults.
 
 Main helpers:
 
 - `load_llm_config(config_path=None) -> LlmConfig`
 - `chat_completion(messages, temperature=None, max_tokens=None) -> str`
-- `summarize_text(text, prompt=..., temperature=None, max_tokens=None) -> str`
+- `summarize_text(text, prompt=None, temperature=None, max_tokens=None) -> str`
 
 ### `main/news/stock_news.py`
 
@@ -307,9 +310,9 @@ Responsibilities:
 - `get_symbol_news(symbol, max_news)`: calls `yf.Ticker(symbol).news`.
 - `normalize_news_item(item)`: normalizes yfinance news shape to title, publisher/source, link, publish time, and summary/snippet.
 - `get_default_news_symbols_from_file()`: reads default news symbols from `resources/symbols/news_symbols.txt`; stock-data symbol refresh still uses `symbols.txt`.
-- `summarize_symbol_news(symbol, articles)`: creates a one-paragraph LLM summary. It strips `<think>...</think>`, markdown fences, and prefixes like `Summary:` from model output. If the LLM fails or returns only unusable reasoning/empty content, it falls back to a deterministic summary from article titles/summaries.
+- `summarize_symbol_news(symbol, articles, summary_prompt=None, max_tokens=None)`: creates a one-paragraph LLM summary. It strips `<think>...</think>`, markdown fences, prefixes like `Summary:`, ellipses, and unfinished trailing fragments from model output. If the LLM fails, returns endpoint-error content, or returns no complete usable sentence, it falls back to a deterministic summary from article titles/summaries.
 - `build_llm_article_text(articles)`: bounds prompt input for news summaries. Env knobs: `NEWS_LLM_MAX_ARTICLES`, `NEWS_LLM_MAX_TITLE_CHARS`, `NEWS_LLM_MAX_SUMMARY_CHARS`, and `NEWS_LLM_MAX_PROMPT_CHARS`.
-- `get_stock_news_summaries(symbols=None, max_news_per_symbol=5, max_workers=4)`: cleans symbols, sorts only at backend record creation time, processes summaries concurrently, and returns API response data.
+- `get_stock_news_summaries(symbols=None, max_news_per_symbol=5, max_workers=4, summary_prompt=None, max_tokens=None)`: cleans symbols, sorts only at backend record creation time, processes summaries concurrently, passes explicit prompt/token values to summaries, and returns API response data.
 
 ## Utility Layer
 

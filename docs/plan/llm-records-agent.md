@@ -7,7 +7,7 @@ Create `docs/plan/llm-records-agent.md` with this checklist plan, then implement
 ## Implementation Checklist
 
 - [x] Create this plan file at `docs/plan/llm-records-agent.md`.
-- [x] Add a reusable backend agent service, for example `LlmAgentService`, responsible for the generic tool loop.
+- [x] Add a reusable backend agent service, for example `LlmAgentService`, responsible for bounded tool orchestration.
 - [x] Add universal tool interfaces, for example:
   - [x] `LlmAgentTool`: tool name, description, argument schema/instructions, execute method.
   - [x] `LlmAgentToolRegistry`: registers tools by name and rejects unknown tools.
@@ -39,8 +39,8 @@ Create `docs/plan/llm-records-agent.md` with this checklist plan, then implement
   {
     "tool": "search_records",
     "arguments": {
-      "query": "text to search for",
-      "limit": 5
+      "queries": ["text to search for"],
+      "limit": 10
     }
   }
   ```
@@ -52,20 +52,23 @@ Create `docs/plan/llm-records-agent.md` with this checklist plan, then implement
   ```
 - [x] If the model returns normal prose instead of JSON, treat it as the final answer.
 - [x] Support only one concrete v1 tool: `search_records`.
-- [x] `search_records` uses existing Qdrant search through `QdrantEmbeddingService`.
+- [x] `search_records` uses existing Qdrant search through `QdrantEmbeddingService`; it supports 1-5 query phrases and legacy single-query fallback.
 - [x] Reuse current related-record safety rules: DB visibility recheck, recent-record preference, old-record filtering unless historical query or high score.
-- [x] Return bounded tool results to the model: up to 5 chunks, max 1200 chars per chunk, max about 7000 chars total.
-- [x] Include source title, record id, created date, modified date, similarity score, and `possibly outdated` marker in tool output.
-- [x] Run at most 3 tool iterations per user message.
-- [x] If a tool fails, return a controlled tool-error result to the model and let it answer without that context.
+- [x] Return bounded tool results to the model: fetch up to 2x candidates per query, sort agent chunks by most recently modified, merge/dedupe, and return up to 10 chunks.
+- [x] Include `Source [recordId]: title`, created date, modified date, similarity score, and `possibly outdated` marker in tool output. Final citations use `[recordId]`.
+- [x] Run at most one tool execution and one final synthesis call per user message.
+- [x] If no records are found, return the no-records message immediately without a final synthesis call.
+- [x] If records are found but final synthesis is unusable, return the "records found but model failed" fallback.
+- [x] If a tool fails, return a controlled fallback without claiming no related records were found.
 - [x] If the model requests an unknown tool, return a controlled tool-error result and do not execute anything.
 
 ## Public API / UI Changes
 
 - [x] Keep endpoint: `POST /api/llm/chat`.
-- [x] Keep response shape initially: `{ "reply": "..." }`.
+- [x] Keep endpoint stable and extend response shape to `{ "reply": "...", "toolUsages": [...] }`.
 - [x] Extend chat request with `chatMode`; keep `includeRelatedRecords` temporarily for backward compatibility.
 - [x] Add an admin chat checkbox labeled to distinguish the new records-agent mode from the current related-record context mode.
+- [x] Add an admin chat checkbox to show or hide agent tool usage metadata above assistant answers.
 - [x] Persist the checkbox setting in local storage so repeated testing keeps the selected mode.
 - [x] No stock or option tools in this plan, but the new tool interfaces must be general enough to add them later as separate `LlmAgentTool` implementations.
 

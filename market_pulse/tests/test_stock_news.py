@@ -20,6 +20,8 @@ def test_normalize_news_item_legacy_shape():
 
 
 def test_get_stock_news_summaries_uses_yfinance_and_llm(monkeypatch):
+    captured = {}
+
     class FakeTicker:
         def __init__(self, symbol):
             self.news = [
@@ -32,19 +34,83 @@ def test_get_stock_news_summaries_uses_yfinance_and_llm(monkeypatch):
             ]
 
     monkeypatch.setattr("main.news.stock_news.yf.Ticker", FakeTicker)
-    monkeypatch.setattr("main.news.stock_news.summarize_text", lambda text, **kwargs: "One paragraph.")
+
+    def fake_summarize_text(text, **kwargs):
+        captured["kwargs"] = kwargs
+        return "One paragraph."
+
+    monkeypatch.setattr("main.news.stock_news.summarize_text", fake_summarize_text)
 
     result = get_stock_news_summaries(["aapl"], max_news_per_symbol=3)
 
     assert result["summaries"][0]["symbol"] == "AAPL"
     assert result["summaries"][0]["summary"] == "One paragraph."
     assert result["summaries"][0]["article_count"] == 1
+    assert captured["kwargs"]["prompt"] is None
+    assert captured["kwargs"]["max_tokens"] is None
+
+
+def test_get_stock_news_summaries_passes_backend_prompt_and_max_tokens(monkeypatch):
+    captured = {}
+
+    class FakeTicker:
+        def __init__(self, symbol):
+            self.news = [
+                {
+                    "title": f"{symbol} headline",
+                    "publisher": "Publisher",
+                    "summary": "Story summary",
+                    "link": "https://example.com/story",
+                }
+            ]
+
+    def fake_summarize_text(text, **kwargs):
+        captured["kwargs"] = kwargs
+        return "One paragraph."
+
+    monkeypatch.setattr("main.news.stock_news.yf.Ticker", FakeTicker)
+    monkeypatch.setattr("main.news.stock_news.summarize_text", fake_summarize_text)
+
+    get_stock_news_summaries(
+        ["aapl"],
+        summary_prompt="Backend owned prompt",
+        max_tokens=1234,
+    )
+
+    assert captured["kwargs"]["prompt"] == "Backend owned prompt"
+    assert captured["kwargs"]["max_tokens"] == 1234
 
 
 def test_clean_llm_summary_removes_thinking_and_prefixes():
     result = clean_llm_summary("<think>reasoning</think>\nSummary: Apple shares rose after earnings.")
 
     assert result == "Apple shares rose after earnings."
+
+
+def test_clean_llm_summary_removes_ellipsis_and_unfinished_tail():
+    result = clean_llm_summary(
+        "Summary: Apple shares rose after earnings... Investors focused on services growth. The final sentence is unfin"
+    )
+
+    assert result == "Apple shares rose after earnings Investors focused on services growth."
+
+
+def test_summarize_symbol_news_falls_back_when_llm_has_no_complete_sentence(monkeypatch):
+    monkeypatch.setattr(
+        "main.news.stock_news.summarize_text",
+        lambda text, **kwargs: "This generated answer is very long but never reaches a complete sentence " * 4,
+    )
+
+    result = summarize_symbol_news("AAPL", [
+        {
+            "title": "Apple earnings beat",
+            "publisher": "Publisher",
+            "summary": "Revenue improved on iPhone demand.",
+            "link": "https://example.com/story",
+        }
+    ])
+
+    assert result == "AAPL: Apple earnings beat: Revenue improved on iPhone demand."
 
 
 def test_summarize_symbol_news_falls_back_when_llm_is_empty(monkeypatch):

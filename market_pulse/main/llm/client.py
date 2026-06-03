@@ -21,7 +21,6 @@ DEFAULT_CONFIG = {
     "api_key_env": None,
     "timeout_seconds": 60,
     "temperature": 0.2,
-    "max_tokens": 800,
 }
 
 
@@ -44,7 +43,6 @@ class LlmConfig:
     api_key_env: str | None
     timeout_seconds: float
     temperature: float
-    max_tokens: int
 
     @property
     def chat_completion_url(self) -> str:
@@ -69,7 +67,6 @@ def load_llm_fallback_config(config_path: str | None = None) -> LlmConfig | None
         "LLM_FALLBACK_API_KEY_ENV",
         "LLM_FALLBACK_TIMEOUT_SECONDS",
         "LLM_FALLBACK_TEMPERATURE",
-        "LLM_FALLBACK_MAX_TOKENS",
     ]
     if not any(os.getenv(key) for key in fallback_env_keys):
         return None
@@ -95,7 +92,6 @@ def _load_llm_config_from_env(config_path: str | None = None, *, fallback: bool 
         "api_key_env": os.getenv("LLM_API_KEY_ENV") or ("LLM_API_KEY" if os.getenv("LLM_API_KEY") else None),
         "timeout_seconds": os.getenv("LLM_TIMEOUT_SECONDS"),
         "temperature": os.getenv("LLM_TEMPERATURE"),
-        "max_tokens": os.getenv("LLM_MAX_TOKENS"),
     }
     merged.update({key: value for key, value in primary_env_overrides.items() if value})
 
@@ -109,7 +105,6 @@ def _load_llm_config_from_env(config_path: str | None = None, *, fallback: bool 
             or ("LLM_FALLBACK_API_KEY" if os.getenv("LLM_FALLBACK_API_KEY") else None),
             "timeout_seconds": os.getenv("LLM_FALLBACK_TIMEOUT_SECONDS"),
             "temperature": os.getenv("LLM_FALLBACK_TEMPERATURE"),
-            "max_tokens": os.getenv("LLM_FALLBACK_MAX_TOKENS"),
         }
         merged.update({key: value for key, value in fallback_env_overrides.items() if value})
 
@@ -123,7 +118,6 @@ def _load_llm_config_from_env(config_path: str | None = None, *, fallback: bool 
         api_key_env=str(api_key_env) if api_key_env else None,
         timeout_seconds=float(merged["timeout_seconds"]),
         temperature=float(merged["temperature"]),
-        max_tokens=int(merged["max_tokens"]),
     )
 
 
@@ -215,8 +209,9 @@ def _chat_completion_single(
         "model": _resolve_model(cfg, headers),
         "messages": messages,
         "temperature": cfg.temperature if temperature is None else temperature,
-        "max_tokens": cfg.max_tokens if max_tokens is None else max_tokens,
     }
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
     try:
         response = httpx.post(
             cfg.chat_completion_url,
@@ -246,15 +241,15 @@ def _chat_completion_single(
 def summarize_text(
     text: str,
     *,
-    prompt: str = "Summarize the following text clearly and concisely.",
+    prompt: str | None = None,
     config: LlmConfig | None = None,
     temperature: float | None = None,
     max_tokens: int | None = None,
 ) -> str:
-    messages = [
-        {"role": "system", "content": prompt},
-        {"role": "user", "content": text},
-    ]
+    messages = []
+    if prompt:
+        messages.append({"role": "system", "content": prompt})
+    messages.append({"role": "user", "content": text})
     return chat_completion(
         messages,
         config=config,

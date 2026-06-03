@@ -3,7 +3,7 @@ import os
 import httpx
 import pytest
 
-from main.llm.client import LlmClientError, chat_completion, load_llm_config, load_llm_fallback_config
+from main.llm.client import LlmClientError, chat_completion, load_llm_config, load_llm_fallback_config, summarize_text
 
 
 def test_load_llm_config_defaults_for_missing_file(tmp_path):
@@ -36,6 +36,43 @@ def test_chat_completion_without_auth(monkeypatch, tmp_path):
     assert result == "summary"
     assert "Authorization" not in captured["headers"]
     assert captured["json"]["model"] == "test-model"
+    assert "max_tokens" not in captured["json"]
+
+
+def test_chat_completion_includes_explicit_max_tokens(monkeypatch, tmp_path):
+    config = load_llm_config(str(tmp_path / "missing.yaml"))
+    captured = {}
+
+    def fake_post(url, headers, json, timeout):
+        captured["json"] = json
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "ok"}}]},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr("main.llm.client.httpx.post", fake_post)
+
+    assert chat_completion([{"role": "user", "content": "hello"}], config=config, max_tokens=123) == "ok"
+    assert captured["json"]["max_tokens"] == 123
+
+
+def test_summarize_text_does_not_add_default_system_prompt(monkeypatch, tmp_path):
+    config = load_llm_config(str(tmp_path / "missing.yaml"))
+    captured = {}
+
+    def fake_post(url, headers, json, timeout):
+        captured["json"] = json
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "ok"}}]},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr("main.llm.client.httpx.post", fake_post)
+
+    assert summarize_text("hello", config=config) == "ok"
+    assert captured["json"]["messages"] == [{"role": "user", "content": "hello"}]
 
 
 def test_chat_completion_with_auth(monkeypatch, tmp_path):

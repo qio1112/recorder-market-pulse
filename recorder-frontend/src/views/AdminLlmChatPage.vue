@@ -12,6 +12,15 @@
           >
           <span>Use record agent</span>
         </label>
+        <label class="mode-toggle" title="Show record-agent tool usage details above LLM answers.">
+          <input
+            v-model="showToolUsageInfo"
+            type="checkbox"
+            :disabled="isSending"
+            @change="saveToolUsagePreference"
+          >
+          <span>Show tool info</span>
+        </label>
         <button
           v-if="!noConnection && !isChecking"
           type="button"
@@ -70,6 +79,17 @@
               {{ formatMessageTime(message.createdAt) }}
             </time>
           </div>
+          <div
+            v-if="shouldShowToolUsages(message)"
+            class="tool-usage"
+          >
+            <div
+              v-for="(usage, usageIndex) in message.toolUsages"
+              :key="usageIndex"
+            >
+              {{ usage }}
+            </div>
+          </div>
           <formatted-text class="content" :text="message.content" />
         </div>
       </div>
@@ -101,6 +121,7 @@ const SYSTEM_MESSAGE = {
 }
 const CHAT_HISTORY_STORAGE_KEY = 'recorder.llmChat.messages'
 const CHAT_AGENT_MODE_STORAGE_KEY = 'recorder.llmChat.recordAgentMode'
+const CHAT_TOOL_USAGE_STORAGE_KEY = 'recorder.llmChat.showToolUsageInfo'
 
 export default {
   name: 'AdminLlmChatPage',
@@ -115,7 +136,8 @@ export default {
       recordMessage: '',
       recordMessageIsError: false,
       noConnection: false,
-      useRecordAgent: false
+      useRecordAgent: false,
+      showToolUsageInfo: false
     }
   },
   computed: {
@@ -128,6 +150,7 @@ export default {
   },
   mounted() {
     this.loadAgentModePreference();
+    this.loadToolUsagePreference();
     this.loadChatHistory();
     this.checkConnection();
   },
@@ -140,6 +163,12 @@ export default {
     },
     saveAgentModePreference() {
       localStorage.setItem(CHAT_AGENT_MODE_STORAGE_KEY, this.useRecordAgent ? 'true' : 'false');
+    },
+    loadToolUsagePreference() {
+      this.showToolUsageInfo = localStorage.getItem(CHAT_TOOL_USAGE_STORAGE_KEY) === 'true';
+    },
+    saveToolUsagePreference() {
+      localStorage.setItem(CHAT_TOOL_USAGE_STORAGE_KEY, this.showToolUsageInfo ? 'true' : 'false');
     },
     getStoredTokenInfo() {
       return parseJwtInfo(localStorage.getItem('token'));
@@ -222,15 +251,25 @@ export default {
       return {
         role: message.role,
         content: message.content,
-        createdAt: this.isValidDateString(message.createdAt) ? message.createdAt : null
+        createdAt: this.isValidDateString(message.createdAt) ? message.createdAt : null,
+        toolUsages: Array.isArray(message.toolUsages)
+          ? message.toolUsages.filter((usage) => typeof usage === 'string' && usage.trim())
+          : []
       };
     },
-    createChatMessage(role, content) {
+    createChatMessage(role, content, toolUsages = []) {
       return {
         role,
         content,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        toolUsages: Array.isArray(toolUsages) ? toolUsages : []
       };
+    },
+    shouldShowToolUsages(message) {
+      return this.showToolUsageInfo
+        && message?.role === 'assistant'
+        && Array.isArray(message.toolUsages)
+        && message.toolUsages.length > 0;
     },
     isValidDateString(value) {
       return typeof value === 'string' && !Number.isNaN(new Date(value).getTime());
@@ -259,7 +298,7 @@ export default {
         if (!response?.reply) {
           throw new Error('No LLM reply');
         }
-        this.messages.push(this.createChatMessage('assistant', response.reply));
+        this.messages.push(this.createChatMessage('assistant', response.reply, response.toolUsages));
         this.noConnection = false;
         this.recordMessage = '';
         this.recordMessageIsError = false;
@@ -503,6 +542,18 @@ export default {
   font-size: 0.84rem;
   overflow: visible;
   line-height: 1.38;
+}
+
+.tool-usage {
+  margin: 0 0 0.45rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid #cfe0f5;
+  border-radius: 4px;
+  background: #f3f8ff;
+  color: #334e68;
+  font-size: 0.74rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .composer {

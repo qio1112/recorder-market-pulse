@@ -153,9 +153,22 @@ public class RelatedRecordContextService {
     }
 
     public String buildCompactToolResultContent(String query, List<RelatedChunkContext> chunks) {
+        return buildCompactToolResultContent(
+                StringUtils.isBlank(query) ? List.of() : List.of(query),
+                chunks
+        );
+    }
+
+    public String buildCompactToolResultContent(List<String> queries, List<RelatedChunkContext> chunks) {
         StringBuilder sb = new StringBuilder();
         sb.append("TOOL_RESULT search_records\n");
-        sb.append("Query: ").append(query == null ? "" : query).append("\n");
+        if (queries == null || queries.isEmpty()) {
+            sb.append("Queries searched: \n");
+        } else if (queries.size() == 1) {
+            sb.append("Query: ").append(queries.get(0)).append("\n");
+        } else {
+            sb.append("Queries searched: ").append(String.join("; ", queries)).append("\n");
+        }
         if (chunks == null || chunks.isEmpty()) {
             sb.append("No related records were found.");
             return sb.toString();

@@ -54,6 +54,7 @@ class LlmAgentServiceTests {
         LlmChatResponse response = service.chatWithTools(request("UNTRACKED"), new User());
 
         assertEquals("No related Recorder records were found for this question.", response.getReply());
+        assertEquals(List.of("Used qdrant tool to search ['UNTRACKED']"), response.getToolUsages());
         verify(tool, times(1)).execute(any(), any());
         verify(marketPulseApiService, times(1)).chatWithLlm(any(), any(Duration.class));
     }
@@ -97,8 +98,38 @@ class LlmAgentServiceTests {
         LlmChatResponse response = service.chatWithTools(request("find tax notes"), new User());
 
         assertEquals("Tax notes mention estimated payments [12].", response.getReply());
+        assertEquals(List.of("Used qdrant tool to search ['tax notes']"), response.getToolUsages());
         verify(tool, times(1)).execute(any(), any());
         verify(marketPulseApiService, times(2)).chatWithLlm(any(), any(Duration.class));
+    }
+
+    @Test
+    void multiQueryToolUsageListsAllSearchKeywords() {
+        MarketPulseApiService marketPulseApiService = mock(MarketPulseApiService.class);
+        LlmAgentTool tool = mockTool();
+        LlmAgentService service = service(marketPulseApiService, tool);
+        when(marketPulseApiService.chatWithLlm(any(), any(Duration.class)))
+                .thenReturn(new LlmChatResponse("{\"tool\":\"search_records\",\"arguments\":{\"queries\":[\"Amazon\",\"Microsoft\"]}}"))
+                .thenReturn(new LlmChatResponse("Amazon and Microsoft both have relevant updates [12] [20]."));
+        when(tool.execute(any(), any())).thenReturn(LlmAgentToolResult.success(
+                "search_records",
+                """
+                        TOOL_RESULT search_records
+                        Queries searched: Amazon; Microsoft
+                        Related records found: 2
+
+                        Source [12]: Amazon News | modified 2026-05-20
+                        Amazon detail.
+
+                        Source [20]: Microsoft News | modified 2026-05-20
+                        Microsoft detail.
+                        """.trim()
+        ));
+
+        LlmChatResponse response = service.chatWithTools(request("Amazon and Microsoft"), new User());
+
+        assertEquals(List.of("Used qdrant tool to search ['Amazon', 'Microsoft']"), response.getToolUsages());
+        assertTrue(response.getReply().contains("Amazon and Microsoft"));
     }
 
     @Test

@@ -5,6 +5,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yipeng.recorder.model.StockDailyHistory;
+import com.yipeng.recorder.prompt.BuiltInLlmTokenLimits;
+import com.yipeng.recorder.prompt.BuiltInPrompts;
 import com.yipeng.recorder.request.LlmChatRequest;
 import com.yipeng.recorder.response.OptionExpiryDatesResponse;
 import com.yipeng.recorder.response.OptionHistoryResponse;
@@ -239,9 +241,12 @@ public class MarketPulseApiService {
         String url = marketPulseBaseUrl + "/news/stock-summary";
         logger.info("Calling Market Pulse stock news summary API: {}", url);
         RestTemplate longTimeoutRestTemplate = buildRestTemplateWithTimeouts(Duration.ofSeconds(10), Duration.ofMinutes(10));
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("summary_prompt", BuiltInPrompts.MARKET_NEWS_SUMMARY_SYSTEM_PROMPT);
+        payload.put("max_tokens", BuiltInLlmTokenLimits.MARKET_NEWS_SUMMARY_MAX_TOKENS);
         ResponseEntity<StockNewsSummaryResponse> response = longTimeoutRestTemplate.postForEntity(
                 url,
-                buildJsonRequest(Collections.emptyMap()),
+                buildJsonRequest(payload),
                 StockNewsSummaryResponse.class
         );
         StockNewsSummaryResponse body = response.getBody() == null ? new StockNewsSummaryResponse() : response.getBody();

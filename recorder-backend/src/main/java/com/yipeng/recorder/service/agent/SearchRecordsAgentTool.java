@@ -5,11 +5,19 @@ import com.yipeng.recorder.service.RelatedRecordContextService;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 @Component
 public class SearchRecordsAgentTool implements LlmAgentTool {
+
+    private static final int MAX_SEARCH_QUERIES = 5;
+    private static final Pattern MULTI_CONCEPT_SPLIT_PATTERN = Pattern.compile("(?i)\\s+(and|or|vs|versus)\\s+|[,;/]+");
 
     private final RelatedRecordContextService relatedRecordContextService;
 
@@ -31,7 +39,8 @@ public class SearchRecordsAgentTool implements LlmAgentTool {
     public String getArgumentSchema() {
         return """
                 {
-                  "query": "required string: the semantic record search query",
+                  "query": "string: fallback semantic record search query",
+                  "queries": "optional array of 1 to 5 concise search keywords or phrases for separate Qdrant searches; use this when the user asks about multiple stocks, companies, topics, decisions, or record concepts",
                   "limit": "optional integer from 1 to 10; defaults to 10"
                 }
                 """.trim();
@@ -39,20 +48,93 @@ public class SearchRecordsAgentTool implements LlmAgentTool {
 
     @Override
     public LlmAgentToolResult execute(Map<String, Object> arguments, User user) {
-        String query = getString(arguments, "query");
-        if (StringUtils.isBlank(query)) {
-            return LlmAgentToolResult.error(getName(), "Missing required argument: query");
+        List<String> queries = getQueries(arguments);
+        if (queries.isEmpty()) {
+            return LlmAgentToolResult.error(getName(), "Missing required argument: query or queries");
         }
         int limit = Math.min(
                 getInteger(arguments, "limit", RelatedRecordContextService.AGENT_CHUNK_LIMIT),
                 RelatedRecordContextService.AGENT_CHUNK_LIMIT
         );
-        List<RelatedRecordContextService.RelatedChunkContext> chunks =
-                relatedRecordContextService.getAgentRelatedChunkContexts(query, user, limit);
+        List<RelatedRecordContextService.RelatedChunkContext> chunks = searchAndMergeChunks(queries, user, limit);
         return LlmAgentToolResult.success(
                 getName(),
-                relatedRecordContextService.buildCompactToolResultContent(query, chunks)
+                relatedRecordContextService.buildCompactToolResultContent(queries, chunks)
         );
+    }
+
+    private List<RelatedRecordContextService.RelatedChunkContext> searchAndMergeChunks(List<String> queries, User user, int limit) {
+        List<List<RelatedRecordContextService.RelatedChunkContext>> resultsByQuery = new ArrayList<>();
+        for (String query : queries) {
+            resultsByQuery.add(relatedRecordContextService.getAgentRelatedChunkContexts(query, user, limit));
+        }
+
+        Map<String, RelatedRecordContextService.RelatedChunkContext> merged = new LinkedHashMap<>();
+        for (int index = 0; merged.size() < limit; index++) {
+            boolean addedAtThisDepth = false;
+            for (List<RelatedRecordContextService.RelatedChunkContext> chunks : resultsByQuery) {
+                if (index >= chunks.size()) {
+                    continue;
+                }
+                RelatedRecordContextService.RelatedChunkContext chunk = chunks.get(index);
+                String key = chunk.recordId() + "\n" + StringUtils.defaultString(chunk.text());
+                if (!merged.containsKey(key)) {
+                    merged.put(key, chunk);
+                    addedAtThisDepth = true;
+                    if (merged.size() >= limit) {
+                        break;
+                    }
+                }
+            }
+            if (!addedAtThisDepth) {
+                break;
+            }
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private List<String> getQueries(Map<String, Object> arguments) {
+        Set<String> queries = new LinkedHashSet<>();
+        Object values = arguments == null ? null : arguments.get("queries");
+        if (values instanceof Iterable<?> iterable) {
+            for (Object value : iterable) {
+                addQuery(queries, value);
+            }
+        } else {
+            addQuery(queries, values);
+        }
+        if (queries.isEmpty()) {
+            addQueryOrSplit(queries, arguments == null ? null : arguments.get("query"));
+        }
+        return queries.stream().limit(MAX_SEARCH_QUERIES).toList();
+    }
+
+    private void addQueryOrSplit(Set<String> queries, Object value) {
+        if (!(value instanceof String text)) {
+            return;
+        }
+        String query = text.trim();
+        if (StringUtils.isBlank(query)) {
+            return;
+        }
+        String[] parts = MULTI_CONCEPT_SPLIT_PATTERN.split(query);
+        if (parts.length <= 1) {
+            addQuery(queries, query);
+            return;
+        }
+        for (String part : parts) {
+            addQuery(queries, part);
+        }
+    }
+
+    private void addQuery(Set<String> queries, Object value) {
+        if (queries.size() >= MAX_SEARCH_QUERIES || !(value instanceof String text)) {
+            return;
+        }
+        String query = text.trim();
+        if (StringUtils.isNotBlank(query)) {
+            queries.add(query);
+        }
     }
 
     private String getString(Map<String, Object> arguments, String key) {
