@@ -69,13 +69,16 @@ def normalize_news_item(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_symbol_news(symbol: str, max_news: int = 5) -> list[dict[str, Any]]:
+    logger.info("Fetching yfinance news for %s with max_news=%s", symbol, max_news)
     raw_news = yf.Ticker(symbol).news or []
     normalized = [
         normalize_news_item(item)
         for item in raw_news[:max_news]
         if isinstance(item, dict)
     ]
-    return [item for item in normalized if item["title"] or item["summary"]]
+    articles = [item for item in normalized if item["title"] or item["summary"]]
+    logger.info("Fetched %s usable yfinance news article(s) for %s", len(articles), symbol)
+    return articles
 
 
 def summarize_symbol_news(
@@ -88,6 +91,14 @@ def summarize_symbol_news(
     if not articles:
         return "No recent news found."
     article_text = build_llm_article_text(articles)
+    logger.info(
+        "Calling LLM news summary for %s: article_count=%s prompt_chars=%s system_prompt_chars=%s max_tokens=%s",
+        symbol,
+        len(articles),
+        len(article_text),
+        len(summary_prompt or ""),
+        max_tokens,
+    )
     try:
         summary = summarize_text(
             f"Symbol: {symbol}\n\n{article_text}",
@@ -104,6 +115,13 @@ def summarize_symbol_news(
         )
         return fallback_article_summary(symbol, articles)
     cleaned_summary = clean_llm_summary(summary)
+    logger.info(
+        "Finished LLM news summary for %s: raw_chars=%s cleaned_chars=%s used_fallback=%s",
+        symbol,
+        len(summary or ""),
+        len(cleaned_summary or ""),
+        not bool(cleaned_summary),
+    )
     return cleaned_summary or fallback_article_summary(symbol, articles)
 
 
@@ -236,6 +254,7 @@ def get_stock_news_summaries(
             cleaned_symbols.append(normalized)
 
     if not cleaned_symbols:
+        logger.info("Stock news summary requested with no usable symbols")
         return {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "summaries": [],
@@ -243,6 +262,13 @@ def get_stock_news_summaries(
 
     summaries_by_index: dict[int, dict[str, Any]] = {}
     worker_count = max(1, min(max_workers, len(cleaned_symbols)))
+    logger.info(
+        "Starting stock news summaries: symbol_count=%s max_news_per_symbol=%s workers=%s using_default_symbols=%s",
+        len(cleaned_symbols),
+        max_news_per_symbol,
+        worker_count,
+        symbols is None,
+    )
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
         futures = {
             executor.submit(
@@ -271,6 +297,7 @@ def get_stock_news_summaries(
         summaries_by_index[index]
         for index in range(len(cleaned_symbols))
     ]
+    logger.info("Finished stock news summaries: summary_count=%s", len(summaries))
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),

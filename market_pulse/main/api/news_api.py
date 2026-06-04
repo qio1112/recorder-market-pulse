@@ -23,13 +23,28 @@ class StockNewsSummaryRequest(BaseModel):
 @router.post("/stock-summary")
 def stock_news_summary(payload: StockNewsSummaryRequest):
     try:
-        return get_stock_news_summaries(
+        symbol_count = len(payload.symbols) if payload.symbols else 0
+        logger.info(
+            "Received stock news summary API request: symbols=%s default_symbols=%s max_news_per_symbol=%s max_workers=%s prompt_chars=%s max_tokens=%s",
+            symbol_count,
+            payload.symbols is None,
+            payload.max_news_per_symbol,
+            payload.max_workers,
+            len(payload.summary_prompt or ""),
+            payload.max_tokens,
+        )
+        result = get_stock_news_summaries(
             symbols=payload.symbols,
             max_news_per_symbol=payload.max_news_per_symbol,
             max_workers=payload.max_workers,
             summary_prompt=payload.summary_prompt,
             max_tokens=payload.max_tokens,
         )
+        logger.info(
+            "Finished stock news summary API request: summary_count=%s",
+            len(result.get("summaries", [])),
+        )
+        return result
     except Exception as exc:  # pragma: no cover - surface runtime errors to clients
         logger.exception("stock news summary failed")
         raise HTTPException(status_code=500, detail=f"stock news summary failed: {exc}") from exc

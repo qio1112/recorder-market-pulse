@@ -240,7 +240,7 @@ public class MarketPulseApiService {
     public StockNewsSummaryResponse getTrackedStockNewsSummary() {
         String url = marketPulseBaseUrl + "/news/stock-summary";
         logger.info("Calling Market Pulse stock news summary API: {}", url);
-        RestTemplate longTimeoutRestTemplate = buildRestTemplateWithTimeouts(Duration.ofSeconds(10), Duration.ofMinutes(10));
+        RestTemplate longTimeoutRestTemplate = buildRestTemplateWithTimeouts(Duration.ofSeconds(10), Duration.ofMinutes(20));
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("summary_prompt", BuiltInPrompts.MARKET_NEWS_SUMMARY_SYSTEM_PROMPT);
         payload.put("max_tokens", BuiltInLlmTokenLimits.MARKET_NEWS_SUMMARY_MAX_TOKENS);
